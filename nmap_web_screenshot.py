@@ -26,12 +26,11 @@ def info(*objects):
 
 
 def take_screenshot(urls, path):
-    binary = '/root/Tools/intelligence-gathering/cutycapt/CutyCapt/CutyCapt'
-    # binary = 'cutycapt'
+    binary = 'CutyCapt'
     for url in tqdm(urls):
         filename = "{0}.png".format(
             url.replace('//', '_').replace('/', '_').replace(':', ''))
-        check_output(["{0}".format(binary), "--max-wait=15000",
+        check_output(["{0}".format(binary), "--insecure", "--max-wait=15000",
                       "--out-format=png", "--url={0}".format(url),
                       "--out={0}/{1}".format(path, filename)])
 
