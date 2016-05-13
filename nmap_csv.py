@@ -43,12 +43,12 @@ def parse_to_csv(files):
                 elif not hostname and host.address in lookup:
                     hostname = lookup[host.address]
                 for service in host.services:
-                    display = service.service
-                    if not display:
-                        display = 'unknown'
-                    if service.tunnel:
-                        display = service.tunnel + "/" + display
                     if service.state == "open":
+                        display = service.service
+                        if not display:
+                            display = 'unknown'
+                        if service.tunnel:
+                            display = service.tunnel + "/" + display
                         lines.add('%s,%s,%s,%s,%s,"%s",%s,"%s"' %
                                   (host.address,
                                    hostname,
