@@ -41,12 +41,17 @@ class Scanner(object):
         self.username = username
         self.password = password
         self.verify = verify
+        if not verify:
+            from requests.packages.urllib3.exceptions import InsecureRequestWarning
+            requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
         self.token = ''
+
 
     def login(self):
         data = {'username': self.username, 'password': self.password}
         res = self.connect('POST', '/session', data, retry=False)
         self.token = res['token']
+
 
     def connect(self, method, resource, data=None, retry=True):
         headers = {'X-Cookie': 'token={0}'.format(self.token),
@@ -88,17 +93,21 @@ class Scanner(object):
                 return r.json()
             return {}
 
+
     def list_scans(self):
         res = self.connect('GET', '/scans')
         return res['scans']
+
 
     def get_scan(self, scan_id):
         res = self.connect('GET', '/scans/{0}'.format(scan_id))
         return res['info']
 
+
     def get_policy(self, policy_id):
         res = self.connect('GET', '/policies/{0}'.format(policy_id))
         return res
+
 
     def get_policy_template(self, name):
         res = self.connect('GET', '/editor/policy/templates')
@@ -106,11 +115,13 @@ class Scanner(object):
             if template['name'] == name:
                 return template
 
+
     def get_scan_template(self, name):
         res = self.connect('GET', '/editor/scan/templates')
         for template in res['templates']:
             if template['name'] == name:
                 return template
+
 
     def create_policy(self, name, custom_settings=None, template='advanced'):
         template = self.get_policy_template(template)
@@ -147,6 +158,7 @@ class Scanner(object):
         res = self.connect('POST', '/policies', data)
         return res['policy_id']
 
+
     def create_scan_from_policy(self, name, targets, policy_id,
                                 custom_settings=None):
         policy = self.get_policy(policy_id)
@@ -161,6 +173,7 @@ class Scanner(object):
         data = {"uuid": policy['uuid'], "settings": settings}
         res = self.connect('POST', '/scans', data)
         return res['scan']['id']
+
 
     def create_scan(self, name, targets, ports='default', custom_settings=None,
                     template='advanced'):
@@ -201,9 +214,11 @@ class Scanner(object):
         res = self.connect('POST', '/scans', data)
         return res['scan']['id']
 
+
     def start_scan(self, scan_id):
         res = self.connect('POST', '/scans/{0}/launch'.format(scan_id))
         return res['scan_uuid']
+
 
     def download_report(self, scan_id, filename):
         # export
@@ -226,8 +241,10 @@ class Scanner(object):
         with open(filename, 'w') as out_file:
             out_file.write(report)
 
+
     def delete_scan(self, scan_id):
         self.connect('DELETE', '/scans/{0}'.format(scan_id))
+
 
     def delete_policy(self, name):
         res = self.connect('GET', '/policies')
