@@ -239,10 +239,10 @@ if __name__ == '__main__':
     targets = set()
     if args.targets:
         if not os.path.isfile(args.targets):
-            error("Targets file '%s' does not exist!" % args.config)
+            error("Targets file '%s' does not exist!" % args.targets)
             exit()
         if not os.access(args.targets, os.R_OK):
-            error("Targets file '%s' is not readable!" % args.config)
+            error("Targets file '%s' is not readable!" % args.targets)
             exit()
         with open(args.targets) as f:
             targets = [line.rstrip('\n') for line in f]

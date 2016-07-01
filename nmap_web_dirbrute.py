@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# vim: set fileencoding=utf-8 :
 
 ###########
 # IMPORTS #
@@ -29,16 +30,20 @@ else:
 # FUNCTIONS #
 #############
 
+def header(*objects):
+    print("\033[01;01m[*]\033[00m", *objects, file=sys.stdout)
+
+
 def error(*objects):
-    print("[!]", *objects, file=sys.stderr)
+    print("\033[01;31m ✖ \033[00m", *objects, file=sys.stderr)
+
+
+def success(*objects):
+    print("\033[01;32m ✔ \033[00m", *objects, file=sys.stdout)
 
 
 def info(*objects):
-    print("[+]", *objects, file=sys.stdout)
-
-
-def exclamation(*objects):
-    print("[!]", *objects, file=sys.stdout)
+    print("\033[01;34m ➜ \033[00m", *objects, file=sys.stdout)
 
 
 def random_alpha(size=7):
@@ -71,40 +76,25 @@ def detect_404(url):
         return None
 
 
-def dirb(urls, wordlist, path):
-    binary = 'dirb'
-    for url in tqdm(urls):
-        filename = "{0}.txt".format(
-             url.replace('//', '_').replace('/', '_').replace(':', ''))
-        # dirb http://127.0.0.1 list.txt -S -o 127.0.0.1.txt
-        try:
-            check_output(["{0}".format(binary), "{0}".format(url),
-                      "{0}".format(wordlist), "-S",
-                      "-o", "{0}/{1}".format(path, filename)])
-        except CalledProcessError as e:
-            print("")
-            error("Error processing {0} - {1}".format(url, e))
-
-
-def brute_dir(urls, wordlist, path):
+def brute_dir(urls, wordlist):
     for url in urls:
-        info("Attempting to discover resources on {0}".format(url))
+        header("Attempting to discover resources on {0}".format(url))
         detected = detect_404(url)
         if not detected:
             error("Could not detect valid 404, skipping {0}".format(url))
             continue
-        for word in tqdm(wordlist):
+        #for word in tqdm(wordlist):
+        for word in wordlist:
             uri = "{0}/{1}".format(url, word)
             try:
                 response = urllib2.urlopen(uri)
                 if response:
                     if detected == -1 or response.headers['content-length'] != detected:
-                        info("{0} [Code: {1} | Length: {2}]".format(uri, response.getcode(),
+                        success("{0} [Code: {1} | Length: {2}]".format(uri, response.getcode(),
                                                                       response.headers['content-length']))
             except urllib2.HTTPError, e:
                 if e.code == 401:
-                    exclamation("{0} [Code {1} | Length: {2}]".format(uri, response.getcode(),
-                                                                      response.headers['content-length']))
+                    info("{0} [Code {1}]".format(uri, e.code))
             except httplib.BadStatusLine:
                 error("Bad status line received from {0}".format(uri))
 
@@ -119,11 +109,6 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description=desc)
     required = parser.add_argument_group('required arguments')
-    required.add_argument('-o', '--output',
-                          action='store',
-                          help='directory to output results',
-                          metavar='PATH',
-                          required=True)
     required.add_argument('-w', '--wordlist',
                           action='store',
                           help='wordlist file',
@@ -144,13 +129,6 @@ if __name__ == '__main__':
             error("File '%s' is not readable!" % xml)
             exit()
 
-    if not os.path.exists(args.output):
-        error("Directory '%s' does not exist!" % args.output)
-        exit()
-    if not os.access(args.output, os.W_OK):
-        error("Directory '%s' is not writable!" % args.output)
-        exit()
-
     if not os.path.isfile(args.wordlist):
         error("File '%s' does not exist!" % args.wordlist)
         exit()
@@ -161,8 +139,6 @@ if __name__ == '__main__':
     web_servers = nmap.parse_web_servers(args.files)
     # TODO: Do vhost lookup on all IP addresses and then add to list
 
-    #dirb(web_servers, args.wordlist, args.output)
-
     with open(args.wordlist, 'r') as file_in:
         words = filter(None, (line.rstrip() for line in file_in))
-    brute_dir(web_servers, words, args.output)
+    brute_dir(web_servers, words)

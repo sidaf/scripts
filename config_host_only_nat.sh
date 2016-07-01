@@ -25,21 +25,21 @@ EOT
 
 echo "[+] Enabling IP Forwarding"
 # configure system to allow ip forwarding
-sudo cat > /etc/sysctl.d/ip_forward.conf << EOF
+cat > /etc/sysctl.d/ip_forward.conf << EOF
   net.ipv4.ip_forward=1
 EOF
 sysctl -w net.ipv4.ip_forward=1
 
 echo "[+] Creating iptables NAT and FORWARD entries"
 # create iptables rules to NAT traffic originating from clients
-sudo iptables -A FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT
-sudo iptables -A FORWARD -s 192.168.56.0/24 ! -d 192.168.56.0/24 -j ACCEPT
-sudo iptables -t nat -A POSTROUTING -s 192.168.56.0/24 ! -d 192.168.56.0/24 -j MASQUERADE
-sudo iptables -A FORWARD -j REJECT --reject-with icmp-port-unreachable
-sudo iptables-save > /etc/iptables.up.rules
-sudo cat > /etc/network/if-pre-up.d/iptables << EOF
+iptables -A FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT
+iptables -A FORWARD -s 192.168.56.0/24 ! -d 192.168.56.0/24 -j ACCEPT
+iptables -t nat -A POSTROUTING -s 192.168.56.0/24 ! -d 192.168.56.0/24 -j MASQUERADE
+iptables -A FORWARD -j REJECT --reject-with icmp-port-unreachable
+iptables-save > /etc/iptables.up.rules
+cat > /etc/network/if-pre-up.d/iptables << EOF
 #!/bin/sh
      /sbin/iptables-restore < /etc/iptables.up.rules
 EOF
-sudo chmod +x /etc/network/if-pre-up.d/iptables
+chmod +x /etc/network/if-pre-up.d/iptables
 

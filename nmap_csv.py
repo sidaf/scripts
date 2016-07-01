@@ -70,9 +70,10 @@ def add_host(lines, lookup, host, open_ports_only=False):
                     display = 'unknown'
                 if service.tunnel:
                     display = service.tunnel + "/" + display
-                lines.add('%s,%s,open,%s,%s,%s,"%s",%s,"%s"' %
+                lines.add('%s,%s,%s,%s,%s,%s,"%s",%s,"%s"' %
                           (host.address,
                            hostname,
+                           'open',
                            service.port,
                            service.protocol,
                            display,
@@ -84,8 +85,8 @@ def add_host(lines, lookup, host, open_ports_only=False):
                     lines.add('%s,%s,%s,%s,,,,,' %
                               (host.address,
                                hostname,
-                               service.port,
-                               service.state))
+                               service.state,
+                               service.port))
     else:
         if not open_ports_only:
             lines.add('%s,%s,,,,,,,' %
