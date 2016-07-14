@@ -3,9 +3,11 @@
 #
 # whoislikeaboss.py
 #
-# Modified version of script downloaded from https://labs.portcullis.co.uk/tools/whois-like-a-boss/
+# Modified version of script downloaded from:
+#   - https://labs.portcullis.co.uk/tools/whois-like-a-boss/
 #
-# Takes files with one IP per line and does a whois, so you can see if something looks fishy.
+# Takes files with one IP per line and does a whois, so you can see if 
+# something looks fishy.
 #
 
 import sys, os, subprocess, re
