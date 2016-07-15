@@ -24,7 +24,7 @@ fi
 # check if there is a second network card
 ip addr show eth1 &>/dev/null
 if [[ "$?" == 0 ]]; then
-  echo "[+] Second interface found, configuring for IP Forwarding and NAT
+  echo "[+] Second interface found, configuring for IP Forwarding and NAT"
   echo "[+] Setting static configuration for eth1"
   cat > /etc/network/interfaces.d/eth1 << "EOF"
 auto eth1
