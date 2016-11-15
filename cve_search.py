@@ -78,12 +78,12 @@ def search(query):
             cvss = json.loads(CveRisk(mycve).get_cvss())
             cves[mycve] = '[CVSS2:%s/AV:%s/AC:%s/Au:%s/C:%s/I:%s/A:%s]' % \
                           (cvss[0]['base'],
-                           cvss[0]['access vector'].upper()[0],
-                           cvss[0]['access complexity'].upper()[0],
+                           cvss[0]['accessVector'].upper()[0],
+                           cvss[0]['accessComplexity'].upper()[0],
                            cvss[0]['authentication'].upper()[0],
-                           cvss[0]['confidentiality impact'].upper()[0],
-                           cvss[0]['integrity impact'].upper()[0],
-                           cvss[0]['availability impact'].upper()[0])
+                           cvss[0]['confidentiality'].upper()[0],
+                           cvss[0]['integrity'].upper()[0],
+                           cvss[0]['availability'].upper()[0])
         for key, value in sorted(cves.iteritems(), key=lambda (k, v): (v, k),
                                  reverse=True):
             print('    -> %s %s' % (key, value))
@@ -93,14 +93,16 @@ def search(query):
 def check_exploit(cve):
     msf = CveExploit(cve).get_msf()
     edb = CveExploit(cve).get_edb()
-    if len(json.loads(msf)) != 0:
-        print('        -> Metasploit exploit found.')
-        #print('            -> id: %s' % json.loads(msf)[0]['id'])
-        pretty_print(json.loads(msf), 3)
-    if len(json.loads(edb)) != 0:
-        print('        -> Exploit-DB PoC found.')
-        #print('            -> url: %s' % json.loads(edb)[0]['url'])
-        pretty_print(json.loads(edb), 3)
+    if json.loads(msf) is not None:
+        if len(json.loads(msf)) != 0:
+            print('        -> Metasploit exploit found.')
+            #print('            -> id: %s' % json.loads(msf)[0]['id'])
+            pretty_print(json.loads(msf), 3)
+    if json.loads(edb) is not None:
+        if len(json.loads(edb)) != 0:
+            print('        -> Exploit-DB PoC found.')
+            #print('            -> url: %s' % json.loads(edb)[0]['url'])
+            pretty_print(json.loads(edb), 3)
 
 
 def search_cve(cve, references, cpe, scanners, exploits):
