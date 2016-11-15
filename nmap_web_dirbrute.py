@@ -90,8 +90,11 @@ def brute_dir(urls, wordlist):
                 response = urllib2.urlopen(uri)
                 if response:
                     if detected == -1 or response.headers['content-length'] != detected:
-                        success("{0} [Code: {1} | Length: {2}]".format(uri, response.getcode(),
-                                                                      response.headers['content-length']))
+                        if 'content-length' in response.headers:
+                            success("{0} [Code: {1} | Length: {2}]".format(uri, response.getcode(),
+                                                                           response.headers['content-length']))
+                        else:
+                            success("{0} [Code: {1} | Length: unknown]".format(uri, response.getcode()))
             except urllib2.HTTPError, e:
                 if e.code == 401:
                     info("{0} [Code {1}]".format(uri, e.code))

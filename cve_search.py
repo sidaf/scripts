@@ -10,7 +10,7 @@ import argparse
 import json
 import re
 
-sys.path.append('/usr/local/share/vfeed')
+sys.path.append('/home/sion/Tools/Brew/share/vfeed/')
 from config.constants import db
 from lib.core.methods import CveExploit
 from lib.core.methods import CveInfo
