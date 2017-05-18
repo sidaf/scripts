@@ -1,0 +1,44 @@
+#!/bin/bash
+
+VMRUN_BIN="/Applications/VMware Fusion.app/Contents/Library/vmrun"
+
+case "$1" in
+  status)
+    "$VMRUN_BIN" list
+    exit 0
+    ;;
+  *)
+    if [ ! -f "/Users/sion/Documents/Virtual Machines.localized/$1.vmwarevm/$1.vmx" ]
+      then
+        echo "That virtual machine does not exist!"
+        exit 1
+    fi
+esac
+
+case "$2" in
+  start)
+    "$VMRUN_BIN" start "$1" nogui
+    ;;
+  stop)
+    "$VMRUN_BIN" stop "$1" nogui
+    ;;
+  suspend)
+    "$VMRUN_BIN" suspend "$1" nogui
+    ;;
+  pause)
+    "$VMRUN_BIN" pause "$1" nogui
+    ;;
+  unpause)
+    "$VMRUN_BIN" unpause "$1" nogui
+    ;;
+  reset)
+    "$VMRUN_BIN" reset "$1" nogui
+    ;;
+  status)
+    "$VMRUN_BIN" list
+    ;;
+  *)
+    echo "Usage: possible options are:"
+    echo "vm <vm> {start | stop | suspend | pause | unpause | reset} | status"
+    exit 1
+esac
