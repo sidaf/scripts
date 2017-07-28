@@ -10,7 +10,7 @@ import argparse
 import json
 import re
 
-sys.path.append('/home/sion/Tools/Brew/share/vfeed/')
+sys.path.append('/usr/share/vfeed-git/')
 from config.constants import db
 from lib.core.methods import CveExploit
 from lib.core.methods import CveInfo
@@ -199,7 +199,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=desc)
     subparsers = parser.add_subparsers(dest='command')
 
-    cpe_p = subparsers.add_parser('cpe', help='query CPE information')
+    cpe_p = subparsers.add_parser('cpe', help='search CPE identifers for a product')
     cpe_p.add_argument('-p', '--product',
                        action='store',
                        help='product name',
@@ -211,7 +211,7 @@ if __name__ == '__main__':
                        metavar='VERSION',
                        default='')
 
-    cve_p = subparsers.add_parser('cve', help='query CVE information')
+    cve_p = subparsers.add_parser('cve', help='show CVE information')
     cve_p.add_argument('-i', '--identifier',
                        action='store',
                        help='CVE identifier',
