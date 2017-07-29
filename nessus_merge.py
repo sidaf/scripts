@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 
 '''
 # based off: http://cmikavac.net/2011/07/09/merging-multiple-nessus-scans-python-script/

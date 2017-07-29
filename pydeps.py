@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 
 import os, sys, json, urllib2
 from hashlib import sha256

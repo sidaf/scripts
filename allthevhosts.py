@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 
 #
 # A quick little webscraper to identify all the webapps associated with an IP address.
