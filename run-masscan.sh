@@ -1,0 +1,15 @@
+#!/bin/bash
+# git clone https://github.com/robertdavidgraham/masscan.git
+
+if [ -z $2 ]; 
+  then printf "\nSytnax: $0 <file of ips> <rate|e.g. 2000>\n\n"
+else
+   FILE=$1; RATE=$2;
+   echo "# masscan -iL $FILE -p T:0-65535 --rate $RATE -oB tcp.masscan"
+   sudo masscan -iL $FILE -p T:0-65535 --rate $RATE -oB tcp.masscan | tee tcp.out
+   check=$(ls tcp.masscan > /dev/null 2>&1); if [ $? -eq 0 ];then
+      masscan --readscan tcp.masscan -oX tcp.xml
+      masscan --readscan tcp.masscan -oL tcp.list
+      cat tcp.list | grep ^open | cut -d" " -f3 | sort -n | uniq > ports.list
+   fi
+fi
