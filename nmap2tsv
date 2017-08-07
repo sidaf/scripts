@@ -1,0 +1,13 @@
+#!/bin/bash
+
+type xmlstarlet >/dev/null 2>&1 || { echo >&2 "Required program 'xmlstarlet' is not installed, aborting."; exit 1; }
+
+if [ -z $1 ]; then
+  printf "\nSyntax: $0 FILE [FILE ...]\n\n"
+else
+  DELIM=$'\t'
+  #DELIM=$','
+  xmlstarlet sel -t -m "//host/ports/port[state[@state='open']]" -v "concat(ancestor::host/address[@addrtype='ipv4']/@addr,'$DELIM',@protocol,'$DELIM',@portid,'$DELIM',state/@state,'$DELIM',service/@name,'$DELIM',service/@tunnel,'$DELIM',service/@product,'$DELIM',service/@version,'$DELIM',service/@extrainfo)" -n "${@}" | sort -t. -n -k1,1 -k2,2 -k3,3 -k4,4
+fi
+
+# http://www.aonalu.net/sourpoi/comp-xmlstar-nmap.html

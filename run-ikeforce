@@ -21,6 +21,6 @@ else
   HASH=$3
   AUTH=$4
   DH=$5
-  echo "# ikeforce.py $IP -e -w wordlists/groupnames.dic -t $ENC $HASH $AUTH $DH"
-  sudo ikeforce.py $IP -e -w wordlists/groupnames.dic -t $ENC $HASH $AUTH $DH | tee ikeforce-groupnames-$IP.txt
+  echo "# ikeforce.py $IP -e -w wordlists/groupnames.dic -t $ENC $HASH $AUTH $DH" | tee ikeforce-groupnames-$IP.txt
+  sudo ikeforce.py $IP -e -w wordlists/groupnames.dic -t $ENC $HASH $AUTH $DH | tee -a ikeforce-groupnames-$IP.txt
 fi

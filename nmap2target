@@ -1,0 +1,137 @@
+#!/usr/bin/env python2
+
+###########
+# IMPORTS #
+###########
+
+from __future__ import print_function
+import sys
+import argparse
+import os
+import socket
+import re
+try:
+    import xml.etree.cElementTree as ElementTree
+except ImportError:
+    import xml.etree.ElementTree as ElementTree
+
+
+#############
+# FUNCTIONS #
+#############
+
+def error(*objects):
+    print(*objects, file=sys.stderr)
+
+
+def info(*objects):
+    print(*objects, file=sys.stdout)
+
+
+def extract(xml_files, protocol_regex, service_regex, tunnel_regex, product_regex):
+    targets = set()
+    for xml_file in xml_files:
+        if not os.path.exists(xml_file):
+            error("File '%s' does not exist." % xml_file)
+            exit(1)
+
+        if not os.access(xml_file, os.R_OK):
+            error("File '%s' is not readable." % xml)
+            exit(1)
+
+        xml = ElementTree.parse(xml_file)
+        try:
+            for host in xml.findall('host'):
+                address = host.find('address').get('addr', "")
+                status_xml = host.find('status', "")
+                status = status_xml.get('state') if status_xml is not None else None
+                if status == 'up':
+                    for port in host.find('ports').findall('port'):
+                        protocol = port.get('protocol', "")
+                        portid = port.get('portid', "")
+                        state = port.find('state').get('state', "")
+                        if state == 'open':
+                            service_xml = port.find('service')
+                            if service_xml is None:
+                                continue
+                            service = service_xml.get('name', "")
+                            tunnel = service_xml.get('tunnel', "")
+                            product = service_xml.get('product', "")
+
+                            # rename some of the standard nmap service names so that they are a bit easier to deal with
+                            if service.startswith('http-'):
+                                service = 'http'
+                            if service.startswith('https-'):
+                                service = 'https'
+                            if tunnel == 'ssl':
+                                if service == 'http' or service == 'upnp' or service == 'socks5':
+                                    service = 'https'
+
+                            protocol_result, service_result, tunnel_result, product_result = True, True, True, True
+                            if protocol_regex and not re.search(protocol_regex, protocol, re.IGNORECASE):
+                                protocol_result = False
+                            if service_regex and not re.search(service_regex, service, re.IGNORECASE):
+                                service_result = False
+                            if tunnel_regex and not re.search(tunnel_regex, tunnel, re.IGNORECASE):
+                                tunnel_result = False
+                            if product_regex and not re.search(product_regex, product, re.IGNORECASE):
+                                product_result = False
+
+                            if protocol_result and service_result and tunnel_result and product_result:
+                                targets.add("%s:%s" % (address, portid))
+        except AttributeError as e:
+            error("Error parsing file '%s', %s" % (xml, e))
+            exit(1)
+    return targets
+
+
+def print_target(xml_files, protocol_regex, service_regex, tunnel_regex, product_regex):
+    targets = extract(xml_files, protocol_regex, service_regex, tunnel_regex, product_regex)
+    for target in sorted(targets, key=lambda item: socket.inet_aton(item.split(':', 1)[0])):
+        print(target)
+
+########
+# MAIN #
+########
+
+if __name__ == '__main__':
+    desc = 'Parse Nmap xml output and print out targets (ip_address:port) based on supplied filters.'
+
+    parser = argparse.ArgumentParser(description=desc)
+    parser.add_argument('files',
+                        action='store',
+                        nargs='+',
+                        help='nmap xml file(s) to parse',
+                        metavar='INPUT')
+    parser.add_argument('-p', '--protocol',
+                        action='store',
+                        help='protocol filter regex',
+                        metavar='REGEX',
+                        default=None)
+    parser.add_argument('-s', '--service',
+                        action='store',
+                        help='service filter regex',
+                        metavar='REGEX',
+                        default=None)
+    parser.add_argument('-t', '--tunnel',
+                        action='store',
+                        help='tunnel filter regex',
+                        metavar='REGEX',
+                        default=None)
+    parser.add_argument('-n', '--name',
+                        action='store',
+                        help='product name filter regex',
+                        metavar='REGEX',
+                        default=None)
+    args = parser.parse_args()
+
+    for xml in args.files:
+        if not os.path.isfile(xml):
+            error("File '%s' does not exist." % xml)
+            exit(1)
+        if not os.access(xml, os.R_OK):
+            error("File '%s' is not readable." % xml)
+            exit(1)
+
+    print_target(args.files, args.protocol, args.service, args.tunnel, args.name)
+

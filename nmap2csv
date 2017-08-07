@@ -1,0 +1,154 @@
+#!/usr/bin/env python2
+
+###########
+# IMPORTS #
+###########
+
+from __future__ import print_function
+import sys
+import argparse
+import os
+import socket
+try:
+    import xml.etree.cElementTree as ElementTree
+except ImportError:
+    import xml.etree.ElementTree as ElementTree
+
+
+#############
+# FUNCTIONS #
+#############
+
+def error(*objects):
+    print(*objects, file=sys.stderr)
+
+
+def info(*objects):
+    print(*objects, file=sys.stdout)
+
+
+def extract(xml_files, hosts_up_only=True, open_ports_only=True, ip_address_filter=None):
+    hosts = list()
+    for xml_file in xml_files:
+        if not os.path.exists(xml_file):
+            error("File '%s' does not exist." % xml_file)
+            exit(1)
+
+        if not os.access(xml_file, os.R_OK):
+            error("File '%s' is not readable." % xml)
+            exit(1)
+
+        xml = ElementTree.parse(xml_file)
+        try:
+            for host in xml.findall('host'):
+                address = host.find('address').get('addr', "")
+                status_xml = host.find('status', "")
+                status = status_xml.get('state') if status_xml is not None else None
+                hostnames_xml = host.find('hostnames')
+                hostname_xml = hostnames_xml.find('hostname') if hostnames_xml is not None else None
+                hostname = hostname_xml.get('name', "") if hostname_xml is not None else ""
+                if ip_address_filter is not None:
+                    if address not in ip_addresses:
+                        continue
+                if status == 'up':
+                    for port in host.find('ports').findall('port'):
+                        state = port.find('state').get('state', "")
+                        if state == 'open':
+                            service_xml = port.find('service')
+                            service = service_xml.get('name', "") if service_xml is not None else None
+                            tunnel = service_xml.get('tunnel', "") if service_xml is not None else None
+                            # rename some of the standard nmap service names so that they are a bit easier to deal with
+                            if service.startswith('http-'):
+                                service = 'http'
+                            if service.startswith('https-'):
+                                service = 'https'
+                            if tunnel == 'ssl':
+                                if service == 'http' or service == 'upnp' or service == 'socks5':
+                                    service = 'https'
+                            hosts.append(dict(ip_address=address,
+                                              host=hostname,
+                                              port=port.get('portid', ""),
+                                              state=state,
+                                              protocol=port.get('protocol', ""),
+                                              service=service,
+                                              tunnel=tunnel,
+                                              product=service_xml.get('product', "") if service_xml is not None else None,
+                                              version=service_xml.get('version', "") if service_xml is not None else None,
+                                              info=service_xml.get('extrainfo', "") if service_xml is not None else None))
+                        else:
+                            if not open_ports_only:
+                                hosts.append(dict(ip_address=address,
+                                                  host=hostname,
+                                                  port=port.get('portid', ""),
+                                                  state=state))
+            else:
+                if not hosts_up_only:
+                   hosts.append(dict(ip_address=address,
+                                     host=hostname))
+        except AttributeError as e:
+            error("Error parsing file '%s', %s" % (xml, e))
+            exit(1)
+    return hosts
+
+
+def print_csv(xml_files, hosts_up_only, open_ports_only, headers=False, delim=","):
+    hosts = extract(xml_files, hosts_up_only, open_ports_only)
+    lines = set()
+    for host in hosts:
+        lines.add("%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s" % (
+            host.get('ip_address'), delim,
+            host.get('host', ""), delim,
+            host.get('port', ""), delim,
+            host.get('state', ""), delim,
+            host.get('protocol', ""), delim,
+            host.get('service', ""), delim,
+            host.get('tunnel', ""), delim,
+            host.get('product', ""), delim,
+            host.get('version', ""), delim,
+            host.get('info', "")))
+    if headers:
+        print("IP ADDRESS%sHOSTNAME%sPORT%sSTATE%sPROTOCOL%sSERVICE%sTUNNEL%sPRODUCT%sVERSION%sINFO" % (
+            delim, delim, delim, delim, delim, delim, delim, delim, delim))
+    for line in sorted(lines, key=lambda item: socket.inet_aton(item.split(',', 1)[0])):
+        print(line)
+
+########
+# MAIN #
+########
+
+if __name__ == '__main__':
+    desc = 'Parse nmap xml output and print out all discovered hosts and their open ports in CSV format.'
+
+    parser = argparse.ArgumentParser(description=desc)
+    parser.add_argument('files',
+                        action='store',
+                        nargs='+',
+                        help='nmap xml file(s) to parse',
+                        metavar='INPUT')
+    parser.add_argument('-a', '--hosts',
+                        action='store_false',
+                        help='print all hosts regardless of status, by default only hosts deemed \'up\' are printed')
+    parser.add_argument('-p', '--ports',
+                        action='store_false',
+                        help='print all ports regardless of status, by default only ports deemed \'open\' are printed')
+    parser.add_argument('-t', '--tabs',
+                        action='store_true',
+                        help='use tab as a delimiter, by default a comma is used')
+    parser.add_argument('-d', '--description',
+                        action='store_true',
+                        help='print column headers, by default no headers are printed')
+    args = parser.parse_args()
+
+    for xml in args.files:
+        if not os.path.isfile(xml):
+            error("File '%s' does not exist." % xml)
+            exit(1)
+        if not os.access(xml, os.R_OK):
+            error("File '%s' is not readable." % xml)
+            exit(1)
+
+    if not args.tabs:
+        print_csv(args.files, args.hosts, args.ports, args.description, ",")
+    else:
+        print_csv(args.files, args.hosts, args.ports, args.description, "\t")
+
