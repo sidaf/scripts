@@ -1,0 +1,91 @@
+#!/usr/bin/env python2
+
+###########
+# IMPORTS #
+###########
+
+from __future__ import print_function
+import os
+import sys
+import json
+import socket
+import requests
+try:
+    from cStringIO import StringIO
+except ImportError:
+    from StringIO import StringIO
+
+
+#############
+# FUNCTIONS #
+#############
+
+def error(*objects):
+    print(*objects, file=sys.stderr)
+
+
+def info(*objects):
+    print(*objects, file=sys.stdout)
+
+
+def usage(prog):
+    info("usage: %s [INPUT]" % prog)
+    info()
+    info('Obtain observed hostnames from DNSDB for the supplied IP addresses and output results in CSV format.')
+    info()
+    info("positional arguments:")
+    info("    INPUT              file containing IP addresses split by newlines, otherwise read from STDIN")
+    info()
+    info("Examples:")
+    info()
+    info("  %s ip_addresses.txt" % prog)
+    info("  cat ip_addresses.txt | %s" % prog)
+    info("  echo '8.8.8.8' | %s" % prog)
+    info()
+
+
+########
+# MAIN #
+########
+
+if __name__ == '__main__':
+
+    # check for request for help
+    if len(sys.argv) == 2:
+        if sys.argv[1] == '-h' or sys.argv[1] == '--help':
+            usage(os.path.basename(sys.argv[0]))
+            exit()
+
+    # Check for DNSDB env
+    try:
+        url = os.environ['DNSDB']
+        if not url:
+            error("Error: DNSDB environment variable is emtpty, unable to obtain server url, please set accordingly.")
+            exit(1)
+    except KeyError:
+        error("Error: DNSDB environment variable not set, unable to obtain server url, please set accordingly.")
+        exit(1)
+
+    hosts = list()
+    with open(sys.argv[1], 'r') if len(sys.argv) > 1 else sys.stdin as f:
+        hosts = [line.strip() for line in f]
+
+    # remove duplicate hosts
+    hosts = list(set(hosts))
+
+    # sort by ip address
+    hosts = sorted(hosts, key=lambda item: socket.inet_aton(item))
+
+    # query
+    results = dict()
+    for host in hosts:
+        headers = {'Accept': 'application/json'}
+        response = requests.get("%s/rdata/ip/%s" % (url, host), headers=headers)
+        if "no results found for query" in response.text:
+            continue
+        data = StringIO(response.text)
+        for line in data:
+            jsonobj = json.loads(line)
+            hostname = str(jsonobj['rrname'])[:-1] # slice the trailing dot
+            print("%s,%s" % (host, hostname))
+
