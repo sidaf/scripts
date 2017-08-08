@@ -12,4 +12,5 @@ else
       masscan --readscan tcp.masscan -oL tcp.list
       cat tcp.list | grep ^open | cut -d" " -f3 | sort -n | uniq > ports.list
    fi
+   sudo chown $USER:$USER tcp.* *.list
 fi
