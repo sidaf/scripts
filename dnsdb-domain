@@ -1,0 +1,123 @@
+#!/usr/bin/env python2
+
+###########
+# IMPORTS #
+###########
+
+import os
+import sys
+import argparse
+import socket
+import dns
+import dns.resolver
+import dns.reversename
+import time
+from multiprocessing import Pool
+#from multiprocessing.dummy import Pool  # utilise threads rather than subprocesses
+import signal
+
+
+####################
+# GLOBAL VARIABLES #
+####################
+
+global url
+global addresses
+
+
+#############
+# FUNCTIONS #
+#############
+
+
+def dnsdb_lookup(domain):
+    headers = {'Accept': 'application/json'}
+    response = requests.get("%s/rrset/name/*.%s" % (url, domain), headers=headers)
+    if "no results found for query" in response.text:
+        return
+    data = StringIO(response.text)
+    for line in data:
+        jsonobj = json.loads(line)
+        rrtype = str(jsonobj['rrtype'])
+        host = str(jsonobj['rrname'])[:-1] # slice the trailing dot
+        if rrtype ==  "A":
+            address = str(jsonobj['rdata'][0])
+            if addresses is None or address in addresses:
+                sys.stdout.write('%s,%s\n' % (address, host))
+                sys.stdout.flush()
+        elif rrtype == "CNAME":
+            cname = str(jsonobj['rdata'][0])[:-1]
+            #sys.stdout.write('%s => (CNAME) %s\n' % (host, cname))
+        else:
+            #sys.stdout.write('%s => (%s) %s\n' % (host, rrtype, ", ".join(jsonobj['rdata'])))
+            pass
+
+
+def initializer():
+    """Ignore CTRL+C in the worker process."""
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+
+
+########
+# MAIN #
+########
+
+if __name__ == '__main__':
+    desc = 'Obtain observed entries from DNSDB for the supplied domains and output results in CSV format.'
+
+    parser = argparse.ArgumentParser(description=desc)
+    parser.add_argument('-f', '--filter',
+                        action='store',
+                        help='a list of IP addresses to filter against, only matching results are printed',
+                        metavar='FILE',
+                        default=None)
+    parser.add_argument('file',
+                        nargs='?',
+                        type=argparse.FileType('r'),
+                        action='store',
+                        help='file containing a list of domains split by a newline, otherwise read from STDIN',
+                        metavar='FILE',
+                        default=sys.stdin)
+    args = parser.parse_args()
+
+    # Check for DNSDB env
+    try:
+        global url
+        url = os.environ['DNSDB']
+        if not url:
+            sys.stderr.write("Error: DNSDB environment variable is emtpty, unable to obtain server url, please set accordingly.\n")
+            exit(1)
+    except KeyError:
+        sys.stderr.write("Error: DNSDB environment variable not set, unable to obtain server url, please set accordingly.\n")
+        exit(1)
+
+    global nameserver
+    nameserver = args.nameserver
+
+    # compile filter (if supplied)
+    global addresses
+    if args.filter:
+        with open(args.filter) as fp:
+            addresses = [line.strip().lower() for line in fp if len(line)>0 and line[0] is not '#']
+    else:
+        addresses = None
+
+    # compile list of domains to brute force
+    try:
+        domains = [line.strip() for line in args.file]
+    except KeyboardInterrupt:
+        exit()
+
+    # remove duplicates and sort
+    domains = list(set(domains))
+    domains = sorted(domains)
+
+    pool = Pool(processes=10, initializer=initializer)
+    try:
+        pool.map(dnsdb_lookup, domains)
+        pool.close()
+        pool.join()
+    except KeyboardInterrupt:
+        pool.terminate()
+        pool.join()
+

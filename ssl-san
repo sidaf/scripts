@@ -1,0 +1,118 @@
+#!/usr/bin/env python2
+
+###########
+# IMPORTS #
+###########
+
+import sys
+import re
+import argparse
+from socket import socket
+import OpenSSL
+from multiprocessing import Pool
+#from multiprocessing.dummy import Pool  # utilise threads rather than subprocesses
+import signal
+
+
+#############
+# FUNCTIONS #
+#############
+
+def verify_cb(conn, cert, errnum, depth, ok):
+    # Yeah, we accept everything!
+    return ok
+
+
+def print_potential_host(address, name):
+    regex_ip = '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}'
+    regex_fqdn = '^\S*\.\S*$'
+    regex_wildcard = '^\*\.'
+    if re.match(regex_wildcard, name):
+        #sys.stderr.write('Wildcard entry found for \'%s\'=> \'%s\'.' % (address, name))
+        return
+    if not re.match(regex_ip, name) and re.match(regex_fqdn, name):
+        sys.stdout.write('%s,%s\n' % (address, name))
+        sys.stdout.flush()
+
+
+def extract_san(target):
+    ip_address = str(target.split(':')[0])
+    port = int(target.split(':')[1])
+
+    context = OpenSSL.SSL.Context(OpenSSL.SSL.SSLv23_METHOD)
+    context.set_verify(OpenSSL.SSL.VERIFY_NONE, verify_cb)
+    sock = socket()
+    try:
+        sock.connect((ip_address, port))
+        sock.setblocking(1)
+        connection = OpenSSL.SSL.Connection(context, sock)
+        connection.set_connect_state()
+        connection.do_handshake()
+
+        x509 = connection.get_peer_certificate()
+        sock.close()
+    except OpenSSL.SSL.Error as e:
+        sys.stderr.write("Error extracting certificate from host %s:%s, (%s) %s\n" % (ip_address, port, type(e).__name__, e))
+        return
+    except Exception as e:
+        sys.stderr.write("Error extracting certificate from host %s:%s, %s\n" % (ip_address, port, e))
+        return
+
+    name = x509.get_subject().commonName.lower().strip()
+    print_potential_host(ip_address, name)
+
+    text = OpenSSL.crypto.dump_certificate(OpenSSL.crypto.FILETYPE_TEXT, x509).decode("utf-8")
+
+    # WARNING: this function does not support multiple SANs extensions - multiple X509v3 extensions of
+    # the same type is disallowed by RFC 5280.
+    match = re.search(r"X509v3 Subject Alternative Name:\s*(.*)", text)
+    # WARNING: this function assumes that no SAN can include ", "!
+    sans_parts = [] if match is None else match.group(1).split(', ')
+
+    for part in sans_parts:
+        if part.startswith('DNS:'):
+            name = part.split(':')[1].strip()
+            name = name.lower()
+            print_potential_host(ip_address, name)
+
+
+def initializer():
+    """Ignore CTRL+C in the worker process."""
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+
+
+########
+# MAIN #
+########
+
+if __name__ == '__main__':
+    desc = 'Parse any certificate provided by the remote service and enumerate any subject alternative names and and output results in CSV format.'
+
+    parser = argparse.ArgumentParser(description=desc)
+    parser.add_argument('file',
+                        nargs='?',
+                        type=argparse.FileType('r'),
+                        action='store',
+                        help='file containing a list of targets (address:port) split by a newline, otherwise read from STDIN',
+                        metavar='FILE',
+                        default=sys.stdin)
+    args = parser.parse_args()
+
+    try:
+        targets = [line.strip() for line in args.file]
+    except KeyboardInterrupt:
+        exit()
+
+    # remove duplicates and sort
+    targets = list(set(targets))
+    targets = sorted(targets)
+
+    pool = Pool(processes=10, initializer=initializer)
+    try:
+        pool.map(extract_san, targets)
+        pool.close()
+        pool.join()
+    except KeyboardInterrupt:
+        pool.terminate()
+        pool.join()
+

@@ -1,0 +1,114 @@
+#!/usr/bin/env python2
+
+###########
+# IMPORTS #
+###########
+
+import sys
+import argparse
+import socket
+import re
+import dns
+import dns.resolver
+import dns.reversename
+import dns.zone
+from multiprocessing import Pool
+#from multiprocessing.dummy import Pool  # utilise threads rather than subprocesses
+import signal
+
+
+####################
+# GLOBAL VARIABLES #
+####################
+
+global nameserver
+
+
+#############
+# FUNCTIONS #
+#############
+
+def axfr(domain):
+    if nameserver:
+        servers = [nameserver]
+    else:
+        servers = list()
+        answers = dns.resolver.query(domain, 'NS')
+        for a in answers:
+            res = re.sub('\.$', '', a.to_text())
+            servers.append(res)
+        if len(servers) == 0:
+            sys.stderr.write('%s => no name servers found\n' % (domain))
+            return
+    for ns in servers:
+        try:
+            zone = dns.zone.from_xfr(dns.query.xfr(ns, domain, timeout=5, lifetime=10))
+        except dns.resolver.Timeout:
+            sys.stderr.write('%s => Request timed out.\n' % (ns))
+            continue
+        except Exception as e:
+            sys.stderr.write("%s => does not allow zone transfers, %s\n" % (ns, e))
+            continue
+        sys.stderr.write("%s => allows zone transfers\n" % (ns))
+        names = zone.nodes.keys()
+        names.sort()
+        for n in names:
+            record = zone[n].to_text(n)
+            if re.match("^@", record):
+                continue
+            name, ttl, rclass, rtype, rdata = record.split(' ', 4)
+            fqdn = "%s.%s" % (name, domain)
+            if rtype == "A":
+                address = rdata.split(' ', 1)[0].split('\n')[0]
+                sys.stdout.write('%s,%s\n' % (address, fqdn))
+                sys.stdout.flush()
+
+
+def initializer():
+    """Ignore CTRL+C in the worker process."""
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+
+
+########
+# MAIN #
+########
+
+if __name__ == '__main__':
+    desc = 'Attempt a Zone Tranfer on supplied domains and output results in CSV format.'
+
+    parser = argparse.ArgumentParser(description=desc)
+    parser.add_argument('-n', '--nameserver',
+                        action='store',
+                        help='target specific nameserver (default: lookup of NS records for a domain)',
+                        metavar='SERVER',
+                        default=None)
+    parser.add_argument('file',
+                        nargs='?',
+                        type=argparse.FileType('r'),
+                        action='store',
+                        help='file containing a list of domains split by a newline, otherwise read from STDIN',
+                        metavar='FILE',
+                        default=sys.stdin)
+    args = parser.parse_args()
+
+    global nameserver
+    nameserver = args.nameserver
+
+    try:
+        domains = [line.strip() for line in args.file]
+    except KeyboardInterrupt:
+        exit()
+
+    # remove duplicates and sort
+    domains = list(set(domains))
+    domains = sorted(domains)
+
+    pool = Pool(processes=10, initializer=initializer)
+    try:
+        pool.map(axfr, domains)
+        pool.close()
+        pool.join()
+    except KeyboardInterrupt:
+        pool.terminate()
+        pool.join()
+

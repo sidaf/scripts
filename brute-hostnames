@@ -1,0 +1,168 @@
+#!/usr/bin/env python2
+
+###########
+# IMPORTS #
+###########
+
+import os
+import sys
+import argparse
+import socket
+import dns
+import dns.resolver
+import dns.reversename
+import time
+from multiprocessing import Pool
+#from multiprocessing.dummy import Pool  # utilise threads rather than subprocesses
+import signal
+
+
+####################
+# GLOBAL VARIABLES #
+####################
+
+global nameserver
+global addresses
+global wildcards
+
+
+#############
+# FUNCTIONS #
+#############
+
+def resolve(hostname):
+    max_attempts = 3
+    resolver = dns.resolver.get_default_resolver()
+    resolver.nameservers = [nameserver]
+    resolver.lifetime = 3
+    attempt = 0
+    while attempt < max_attempts:
+        try:
+            answers = resolver.query(hostname)
+        except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer, dns.resolver.NoNameservers, dns.name.EmptyLabel) as e:
+            #sys.stderr.write('%s => No record found.\n' % (domain))
+            pass
+        except dns.resolver.Timeout:
+            attempt += 1
+            if attempt == max_attempts:
+                sys.stderr.write('%s => Request timed out.\n' % (hostname))
+            continue
+        else:
+            for i in range(0, len(answers)):
+                address = answers[i].address
+                if address != wildcards[domain]:
+                    if addresses is None or address in addresses:
+                        sys.stdout.write('%s,%s\n' % (address, hostname))
+                        sys.stdout.flush()
+        # break out of the loop
+        attempt = max_attempts
+
+
+def check_wildcard(domain):
+    max_attempts = 3
+    resolver = dns.resolver.get_default_resolver()
+    resolver.nameservers = [nameserver]
+    resolver.lifetime = 3
+    attempt = 0
+    while attempt < max_attempts:
+        wildcard = None
+        try:
+            epochtime = str(int(time.time()))
+            answers = resolver.query('a%s.%s' % (epochtime, domain))
+            wildcard = answers.response.answer[0][0]
+            sys.stderr.write('%s => Wildcard entry found, %s.\n' % (domain, wildcard))
+        except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer, dns.resolver.NoNameservers):
+            #sys.stderr.write('%s => No record found.\n' % (hostname))
+            pass
+        except dns.resolver.Timeout:
+            attempt += 1
+            if attempt == max_attempts:
+                sys.stderr.write('%s => Request timed out querying for wildcard entry.\n' % (domain))
+            continue
+        return wildcard
+
+
+def initializer():
+    """Ignore CTRL+C in the worker process."""
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+
+
+########
+# MAIN #
+########
+
+if __name__ == '__main__':
+    desc = 'Brute force host names using a wordlist and supplied domains and output results in CSV format.'
+
+    parser = argparse.ArgumentParser(description=desc)
+    parser.add_argument('-n', '--nameserver',
+                        action='store',
+                        help='nameserver to use for lookups (default: 8.8.8.8)',
+                        metavar='NS',
+                        default='8.8.8.8')
+    parser.add_argument('-w', '--wordlist',
+                        action='store',
+                        help='a list of words to use for brute force attack (default: %s/wordlists/hostnames.txt)' % os.path.dirname(os.path.realpath(__file__)),
+                        metavar='FILE',
+                        default="%s/wordlists/hostnames.txt" % os.path.dirname(os.path.realpath(__file__)))
+    parser.add_argument('-f', '--filter',
+                        action='store',
+                        help='a list of IP addresses to filter against, only matching results are printed',
+                        metavar='FILE',
+                        default=None)
+    parser.add_argument('file',
+                        nargs='?',
+                        type=argparse.FileType('r'),
+                        action='store',
+                        help='file containing a list of domains split by a newline, otherwise read from STDIN',
+                        metavar='FILE',
+                        default=sys.stdin)
+    args = parser.parse_args()
+
+    global nameserver
+    nameserver = args.nameserver
+
+    # compile wordlist for hostname brute force
+    with open(args.wordlist) as fp:
+        wordlist = [line.strip().lower() for line in fp if len(line)>0 and line[0] is not '#']
+
+    # compile filter (if supplied)
+    global addresses
+    if args.filter:
+        with open(args.filter) as fp:
+            addresses = [line.strip().lower() for line in fp if len(line)>0 and line[0] is not '#']
+    else:
+        addresses = None
+
+    # compile list of domains to brute force
+    try:
+        domains = [line.strip() for line in args.file]
+    except KeyboardInterrupt:
+        exit()
+
+    # remove duplicates and sort
+    domains = list(set(domains))
+    domains = sorted(domains)
+
+    # check for a wildcard entry for each domain
+    global wildcards
+    wildcards = dict()
+    for domain in domains:
+        wildcards[domain] = check_wildcard(domain)
+
+    # compile a list of brute force canidates (hostname + domain)
+    candidates = list()
+    for domain in domains:
+        for word in wordlist:
+            candidate = '%s.%s' % (word, domain)
+            candidates.append(candidate.lower())
+
+    pool = Pool(processes=10, initializer=initializer)
+    try:
+        pool.map(resolve, candidates)
+        pool.close()
+        pool.join()
+    except KeyboardInterrupt:
+        pool.terminate()
+        pool.join()
+

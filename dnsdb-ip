@@ -6,6 +6,7 @@
 
 import os
 import sys
+import argparse
 import json
 import socket
 import requests
@@ -33,7 +34,7 @@ def dnsdb_lookup(address):
     headers = {'Accept': 'application/json'}
     response = requests.get("%s/rdata/ip/%s" % (url, address), headers=headers)
     if "no results found for query" in response.text:
-        continue
+        return
     data = StringIO(response.text)
     for line in data:
         jsonobj = json.loads(line)
@@ -59,7 +60,7 @@ if __name__ == '__main__':
                         nargs='?',
                         type=argparse.FileType('r'),
                         action='store',
-                        help='file containing IP addresses split by newline, otherwise read from STDIN',
+                        help='file containing a list of IP addresses split by a newline, otherwise read from STDIN',
                         metavar='FILE',
                         default=sys.stdin)
     args = parser.parse_args()
