@@ -14,31 +14,6 @@ udp_top100_other='523,1604,2302,2362,3478,3671,6481,44818,47808'
 
 UDP=$udp_top100,$udp_top100_other
 
-
-if [ -z $1 ];then
-  printf "\nSyntax: ./$0 <file of ips> <Option|-t (tcp) or -u (udp) or -a (tcp & udp)> <optional: file of tcp ports>\n\n"
-else
-  FILE=$1
-  OPTION=$2
-  PORTS=${3:-}
-
-  if [[ -f $FILE ]]; then
-    echo $FILE does not exist!
-    return 1
-  fi
-
-  if [ $OPTION == '-t' ];then
-    run_tcp $FILE $PORTS
-  elif [ $OPTION == '-u' ];then
-    run_udp $FILE
-  elif [ $OPTION == '-a' ];then
-    run_tcp $FILE $PORTS
-    run_udp $FILE
-  else
-	  echo 'Dammit Bobby.'
-  fi
-fi
-
 run_tcp() {
   FILE=$1
   PORTS=$2
@@ -62,3 +37,27 @@ run_udp() {
   echo "# nmap -v -Pn -sU -sV --version-intensity 2 -O --script=default --traceroute -T4 -p U:$UDP --initial-rtt-timeout=200ms --min-rtt-timeout=100ms --max-rtt-timeout=1000ms --defeat-rst-ratelimit --open --stats-every 15s -oA udp -iL $FILE" | tee nmap_udp.out
   nmap -v -Pn -sU -sV --version-intensity 2 -O --script=default --traceroute -T4 -p U:$UDP --initial-rtt-timeout=200ms --min-rtt-timeout=100ms --max-rtt-timeout=1000ms --defeat-rst-ratelimit --open --stats-every 15s -oA udp -iL $FILE | tee -a nmap_udp.out
 }
+
+if [ -z $1 ];then
+  printf "\nSyntax: ./$0 <file of ips> <Option|-t (tcp) or -u (udp) or -a (tcp & udp)> <optional: file of tcp ports>\n\n"
+else
+  FILE=$1
+  OPTION=$2
+  PORTS=${3:-}
+
+  if [[ ! -f $FILE ]]; then
+    echo $FILE does not exist!
+    exit 1
+  fi
+
+  if [ $OPTION == '-t' ];then
+    run_tcp $FILE $PORTS
+  elif [ $OPTION == '-u' ];then
+    run_udp $FILE
+  elif [ $OPTION == '-a' ];then
+    run_tcp $FILE $PORTS
+    run_udp $FILE
+  else
+	  echo 'Dammit Bobby.'
+  fi
+fi
