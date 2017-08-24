@@ -1,0 +1,8 @@
+#!/bin/bash
+
+if [ -z $1 ]; 
+  then printf "\nSyntax: $0 <file of ips>\n\n"
+else
+  FILE=$1
+  run-masscan $1 2000 && run-nmap $1 -a ports.list
+fi
