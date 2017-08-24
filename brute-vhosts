@@ -1,0 +1,140 @@
+#!/usr/bin/env python2
+
+###########
+# IMPORTS #
+###########
+
+import sys
+import argparse
+from multiprocessing import Pool
+#from multiprocessing.dummy import Pool  # utilise threads rather than subprocesses
+import signal
+import modules.curl as curl
+
+
+####################
+# GLOBAL VARIABLES #
+####################
+
+global target
+global canary
+
+
+#############
+# FUNCTIONS #
+#############
+
+def brute_vhost(vhost):
+    max_attempts = 3
+    attempt = 0
+    while attempt < max_attempts:
+        try:
+            url, _, _, _, _, _, resolve = curl.explode_target(target, vhost)
+            response = curl.request(method='GET', url=url, resolve=resolve)
+        except:
+            attempt += 1
+            if attempt == max_attempts:
+                sys.stderr.write('%s => Request timed out.\n' % (target))
+            continue
+        else:
+            if check_canary(response):
+                sys.stdout.write('%s,%s\n' % (target, vhost))
+                sys.stdout.flush()
+        # break out of the loop
+        attempt = max_attempts
+
+
+def check_canary(response):
+    if 200 <= response.status_code <= 299:
+        if canary == response.text:
+            return True
+    elif response.status_code == 301 or response.status_code == 302 \
+            or response.status_code == 303 or response.status_code == 307:
+        if canary == response.headers['location']:
+            return True
+    else:
+        if canary == response.status_code:
+            return True
+    return False
+
+
+def obtain_canary():
+    canary = None
+    # Attempt to request target, use response as a canary
+    max_attempts = 3
+    attempt = 0
+    while attempt < max_attempts:
+        try:
+            response = curl.request(method='GET', url=target)
+            if 200 <= response.status_code <= 299:
+                canary = response.text
+            elif response.status_code == 301 or response.status_code == 302 \
+                    or response.status_code == 303 or response.status_code == 307:
+                canary = response.headers['location']
+            else:
+                canary = response.status_code
+        except:
+            attempt += 1
+            if attempt == max_attempts:
+                sys.stderr.write('%s => Request timed out.\n' % (target))
+            continue
+        # break out of the loop
+        attempt = max_attempts
+    return canary
+
+
+def initializer():
+    """Ignore CTRL+C in the worker process."""
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+
+
+########
+# MAIN #
+########
+
+if __name__ == '__main__':
+    desc = 'Identify virtual hosts hosted by the target web server by setting different host ' \
+           'headers taken from the supplied list of hostnames.'
+
+    parser = argparse.ArgumentParser(description=desc)
+    parser.add_argument('file',
+                        nargs='?',
+                        type=argparse.FileType('r'),
+                        action='store',
+                        help='file containing a list of hostnames split by a newline, otherwise read from STDIN',
+                        metavar='FILE',
+                        default=sys.stdin)
+    required = parser.add_argument_group('required arguments')
+    required.add_argument('-t', '--target',
+                          action='store',
+                          help='target web server URL (http[s]://address:port)',
+                          metavar='URL',
+                          required=True)
+    args = parser.parse_args()
+
+    try:
+        vhosts = [line.strip() for line in args.file]
+    except KeyboardInterrupt:
+        exit()
+
+    global target
+    target = args.target
+    
+    global canary
+    canary = obtain_canary()
+    if canary is None:
+        exit(1)
+
+    # remove duplicates and sort
+    vhosts = list(set(vhosts))
+    vhosts = sorted(vhosts)
+
+    # https://www.binpress.com/tutorial/simple-python-parallelism/121
+    pool = Pool(processes=10, initializer=initializer)
+    try:
+        pool.map(brute_vhost, vhosts)
+        pool.close()
+        pool.join()
+    except KeyboardInterrupt:
+        pool.terminate()
+        pool.join()

@@ -103,8 +103,7 @@ if __name__ == '__main__':
             exit()
 
     if os.path.isfile(args.output):
-        error("Output file '{0}' already exists, please remove before "
-              "continuing!".format(args.output))
+        error("Output file '{0}' already exists, please remove before continuing!".format(args.output))
         exit()
 
     merge(args.files, args.output, args.title)

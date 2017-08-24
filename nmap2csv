@@ -35,7 +35,7 @@ def extract(xml_files, hosts_up_only=True, open_ports_only=True, ip_address_filt
             exit(1)
 
         if not os.access(xml_file, os.R_OK):
-            error("File '%s' is not readable." % xml)
+            error("File '%s' is not readable." % xml_file)
             exit(1)
 
         xml = ElementTree.parse(xml_file)
@@ -48,7 +48,7 @@ def extract(xml_files, hosts_up_only=True, open_ports_only=True, ip_address_filt
                 hostname_xml = hostnames_xml.find('hostname') if hostnames_xml is not None else None
                 hostname = hostname_xml.get('name', "") if hostname_xml is not None else ""
                 if ip_address_filter is not None:
-                    if address not in ip_addresses:
+                    if address not in ip_address_filter:
                         continue
                 if status == 'up':
                     for port in host.find('ports').findall('port'):
@@ -133,10 +133,13 @@ if __name__ == '__main__':
                         help='print all ports regardless of status, by default only ports deemed \'open\' are printed')
     parser.add_argument('-t', '--tabs',
                         action='store_true',
-                        help='use tab as a delimiter, by default a comma is used')
+                        help='use tab as a field delimiter, by default a comma is used')
     parser.add_argument('-d', '--description',
                         action='store_true',
                         help='print column headers, by default no headers are printed')
+    parser.add_argument('-s', '--services',
+                        action='store_true',
+                        help='list unique services')
     args = parser.parse_args()
 
     for xml in args.files:
@@ -151,4 +154,3 @@ if __name__ == '__main__':
         print_csv(args.files, args.hosts, args.ports, args.description, ",")
     else:
         print_csv(args.files, args.hosts, args.ports, args.description, "\t")
-

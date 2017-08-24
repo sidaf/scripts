@@ -1,0 +1,216 @@
+#!/usr/bin/env python2
+
+###########
+# IMPORTS #
+###########
+
+import sys
+import argparse
+from multiprocessing import Pool
+#from multiprocessing.dummy import Pool  # utilise threads rather than subprocesses
+from multiprocessing import Lock
+import signal
+from time import sleep
+import modules.curl as curl
+
+
+####################
+# GLOBAL VARIABLES #
+####################
+
+global target
+global vhost
+global request_max_attempt
+global target_max_attempt
+global rate_limit
+global method
+global ignore_status_code
+global print_status_code
+global candidates_lock
+global candidates
+global target_attempt
+global visited_urls_lock
+global visited_urls
+
+
+#############
+# FUNCTIONS #
+#############
+
+def crawl(candidate):
+    attempt = 0
+    while attempt < request_max_attempt and target_attempt < target_max_attempt:
+        if rate_limit > 0:
+            sleep(rate_limit)
+        try:
+            # Explode target into usable components
+            url, scheme, host, ip_address, port, resource, resolve = curl.explode_target(candidate, vhost)
+
+            # Check that we haven't done this request before
+            vid = '%s|%s|%s|%s' % (candidate, vhost, url, method)
+            with visited_urls_lock:
+                if vid in visited_urls:
+                    return
+
+            # Perform request
+            response = curl.request(method=method, url=url, resolve=resolve)
+
+            # Process successful hit
+            if any(response.status_code != int(code.strip()) for code in ignore_status_code.split(',')):
+                # Extract links
+                links = extract_links(url, response)
+
+                # Remove links deemed out of scope
+                links = purge_out_of_scope(links, scheme, host, port)
+
+                # Add new targets as candidates
+                with candidates_lock:
+                    for link in links:
+                        candidates.add(link)
+
+            # Print
+            if any(response.status_code == int(code.strip()) for code in print_status_code.split(',')):
+                sys.stdout.write('%s,%s\n' % (candidate, vhost))
+                sys.stdout.flush()
+
+            # Add to visited urls cache
+            with visited_urls_lock:
+                visited_urls.add(vid)
+        except:
+            attempt += 1
+            if attempt == request_max_attempt:
+                sys.stderr.write("%s => Maximum error count reached for candidate, skipping.\n" % (url))
+                global target_attempt
+                target_attempt += 1
+                if target_attempt >= target_max_attempt:
+                    sys.stderr.write("%s => Maximum error count reached for target, skipping.\n" % (target))
+            continue
+        # break out of the loop
+        attempt = request_max_attempt
+
+
+def initializer():
+    """Ignore CTRL+C in the worker process."""
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+
+
+########
+# MAIN #
+########
+
+if __name__ == '__main__':
+    desc = 'Identify virtual hosts hosted by the target web server by setting different host ' \
+           'headers taken from the supplied list of hostnames.'
+
+    parser = argparse.ArgumentParser(description=desc)
+    parser.add_argument('-v', '--vhost',
+                        action='store',
+                        help='virtual host',
+                        metavar='HOST',
+                        default=None)
+    parser.add_argument('-c', '--cache',
+                        action='store',
+                        help='cache file that can store visited URLs between invocations',
+                        metavar='FILE',
+                        default=None)
+    parser.add_argument('--ignore-extensions',
+                        action='store',
+                        help='file with extensions that should not be ignored and not requested',
+                        metavar='EXT',
+                        default='.exe,.zip,.tar,.bz2,.run,.asc,.gz,.bin,.iso,.dmg,.xz,.pdf,.docx,.doc,.pptx,.ppt')
+    parser.add_argument('--ignore-status-code',
+                        action='store',
+                        help='do not crawl responses that return a matching status code',
+                        metavar='CODE',
+                        default='404')
+    parser.add_argument('-p', '--print-status_code',
+                        action='store',
+                        help='only print responses with a matching status code',
+                        metavar='CODE',
+                        default='200,401')
+    #('ignore_regex', None, False, 'skip resources that match regex'),
+    #('allow_regex', None, False, 'crawl only resources that match regex'),
+    required = parser.add_argument_group('required arguments')
+    required.add_argument('-t', '--target',
+                          action='store',
+                          help='target web server URL (http[s]://address:port)',
+                          metavar='URL',
+                          required=True)
+    required.add_argument('-m', '--method',
+                          action='store',
+                          help='HTTP method to use for requests',
+                          metavar='METHOD',
+                          default='GET')
+    required.add_argument('--rate-limit',
+                          action='store',
+                          help='wait NUM seconds between each test',
+                          metavar='NUM',
+                          default=0)
+    required.add_argument('--request-max-attempt',
+                          action='store',
+                          help='skip request after NUM failed connection attempts',
+                          metavar='NUM',
+                          default=3)
+    required.add_argument('--target-max-attempt',
+                          action='store',
+                          help='stop crawl after NUM failed request max attempts',
+                          metavar='NUM',
+                          default=2)
+    #('crawl_depth', '5', True, 'skip resources that are NUM directories deep, -1 for unlimited'),
+    #('crawl_limit', '-1', True, 'stop crawl after NUM resources have been retrieved, -1 for unlimited'),
+    args = parser.parse_args()
+
+    global target
+    target = args.target
+
+    global vhost
+    vhost = args.vhost
+
+    global request_max_attempt
+    request_max_attempt = args.request_max_attempt
+
+    global target_max_attempt
+    target_max_attempt = args.target_max_attempt
+
+    global rate_limit
+    rate_limit = rate_limit
+
+    global method
+    method = args.method
+
+    global ignore_status_code
+    ignore_status_code = args.ignore_status_code
+
+    global print_status_code
+    print_status_code = args.print_status_code
+
+    global candidates_lock
+    candidates_lock = Lock()
+
+    global candidates
+    candidates = set()
+    candidates.add(target)
+
+    global target_attempt
+    target_attempt = 0
+
+    global visited_urls_lock
+    visited_urls_lock = Lock()
+
+    global visited_urls
+    visited_urls = set()
+
+    pool = Pool(processes=10, initializer=initializer)
+    while True:
+        last_count = len(candidates)
+        try:
+            pool.map(crawl, candidates.copy())
+            pool.close()
+            pool.join()
+            # Break out of loop if no new candidates exist
+            if last_count >= len(candidates):
+                break
+        except KeyboardInterrupt:
+            pool.terminate()
+            pool.join()
+            break

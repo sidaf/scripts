@@ -9,10 +9,10 @@ import sys
 import argparse
 import json
 import socket
-import requests
 from multiprocessing import Pool
 #from multiprocessing.dummy import Pool  # utilise threads rather than subprocesses
 import signal
+import requests
 try:
     from cStringIO import StringIO
 except ImportError:
@@ -70,7 +70,7 @@ if __name__ == '__main__':
         global url
         url = os.environ['DNSDB']
         if not url:
-            sys.stderr.write("Error: DNSDB environment variable is emtpty, unable to obtain server url, please set accordingly.\n")
+            sys.stderr.write("Error: DNSDB environment variable is empty, unable to obtain server url, please set accordingly.\n")
             exit(1)
     except KeyError:
         sys.stderr.write("Error: DNSDB environment variable not set, unable to obtain server url, please set accordingly.\n")
@@ -81,10 +81,8 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         exit()
 
-    # remove duplicates
+    # remove duplicates and sort
     addresses = list(set(addresses))
-
-    # sort
     addresses = sorted(addresses, key=lambda item: socket.inet_aton(item))
 
     # https://www.binpress.com/tutorial/simple-python-parallelism/121

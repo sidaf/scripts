@@ -2,7 +2,10 @@ from Cookie import Morsel
 from types import TupleType, DictType, ListType
 from urlparse import urlparse, urlunparse, parse_qsl, urljoin
 from urllib import quote, urlencode, quote_plus
-from cStringIO import StringIO
+try:
+    from cStringIO import StringIO
+except ImportError:
+    from StringIO import StringIO
 from cookielib import CookieJar, Cookie
 from itertools import chain
 from re import compile as re_compile
@@ -12,18 +15,19 @@ import json
 import time
 import os
 import re
+import sys
 import random
+import pycurl
 try:
     import xml.etree.cElementTree as ElementTree
 except ImportError:
     import xml.etree.ElementTree as ElementTree
-import pycurl
 
 
-def curl(url=None, host=None, port='', scheme='http', path='/', params='', query='', fragment='', body='',
-         header='', method='GET', auto_urlencode='1', user_pass='', auth_type='basic', follow='0', max_follow='5',
-         cookiejar=None, proxy='', proxy_type='http', resolve='', ssl_cert='', timeout_tcp='10', timeout='20',
-         max_mem='-1'):
+def request(url=None, host=None, port='', scheme='http', path='/', params='', query='', fragment='',
+            body='', header='', method='GET', auto_urlencode='1', user_pass='', auth_type='basic',
+            follow='0', max_follow='5', cookiejar=None, proxy='', proxy_type='http', resolve='',
+            ssl_cert='', timeout_tcp='10', timeout='20', max_mem='-1'):
 
     if url:
         scheme, host, path, params, query, fragment = urlparse(url)
@@ -161,7 +165,7 @@ def curl(url=None, host=None, port='', scheme='http', path='/', params='', query
     return response
 
 
-def detect_error_code(method, url, resolve=None, include_redirects=True):
+def detect_page_not_found(method, url, resolve=None):
     # Set good defaults
     ecode, emesg = 404, None
 
@@ -171,7 +175,7 @@ def detect_error_code(method, url, resolve=None, include_redirects=True):
 
     # Curl it
     try:
-        response = curl(method=method, url=test_url, resolve=resolve)
+        response = request(method=method, url=test_url, resolve=resolve)
     except:
         #import traceback
         #traceback.print_exc()
@@ -190,16 +194,68 @@ def detect_error_code(method, url, resolve=None, include_redirects=True):
             sys.stderr.write("Using first 256 bytes of the response as a page not found identifier.\n")
             emesg = response.text[0:256]
         else:
-            std.stderr.write("Using '%s' text as a page not found identifier.\n" % emesg)
+            sys.stderr.write("Using '%s' text as a page not found identifier.\n" % emesg)
     elif response.status_code == 301 or response.status_code == 302 \
             or response.status_code == 303 or response.status_code == 307:
-        if include_redirects:
-            ecode = response.status_code
-            sys.stderr.write("Using status code '%s' as a page not found identifier.\n" % str(ecode))
+        ecode = response.status_code
+        sys.stderr.write("Using status code '%s' as a page not found identifier.\n" % str(ecode))
     else:
         ecode = response.status_code
         sys.stderr.write("Using status code '%s' as a page not found identifier.\n" % str(ecode))
     return ecode, emesg
+
+
+def explode_target(url, vhost):
+    # Tear down url
+    scheme, netloc, path, params, query, fragment = urlparse(url)
+    if ':' in netloc:
+        host, port = netloc.split(':')
+        port = int(port)
+    else:
+        host = netloc
+        if scheme == 'https':
+            port = 443
+        else:
+            port = 80
+
+    # Check if 'host' actually holds an ip address!
+    if re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', host) is not None:
+        ip_address = host
+    else:
+        ip_address = None
+
+    # Replace host value with the virtual host value, if one exists.
+    if vhost:
+        host = vhost
+
+    # Rebuild url
+    if port:
+        netloc = '%s:%s' % (host, port)
+    else:
+        netloc = host
+    url = urlunparse((scheme, netloc, path, params, query, fragment))
+
+    # Create resource for easier usage
+    resource = url.replace(scheme + "://" + netloc, '')
+    
+    # if this is a server root, resource will be empty, so need to add a slash
+    if not resource:
+        resource = '/'
+
+    # Build a resolve entry so that virtual hosts can be accessed
+    if host != ip_address:
+        resolve = '%s:%s' % (host, ip_address)
+    else:
+        resolve = None
+
+    # So by now we should have gone from something like this:
+    #    target: http://127.0.0.1|www.home.com
+    # To this:
+    #    url: http://www.home.com:80
+    #    resolve: www.home.com:127.0.0.1
+    # This allows the use of curl's resolve argument rather than using a 'host:' header to access virtual hosts
+
+    return url, scheme, host, ip_address, port, resource, resolve
 
 
 class HttpResponse(object):

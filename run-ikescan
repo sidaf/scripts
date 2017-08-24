@@ -8,11 +8,11 @@ else
   OPTION=$2
 
   if [ $OPTION == '-i' ];then
-	  echo "# ike-scan -M $IP"
-	  sudo ike-scan -M $IP | tee ikescan-$IP-main-mode.txt
+	  echo "# ike-scan -M $IP" | tee ikescan-$IP-main-mode.txt
+	  sudo ike-scan -M $IP | tee -a ikescan-$IP-main-mode.txt
   elif [ $OPTION == '-a' ];then
-	  echo "# ike-scan -M -A --id=GroupVPN $IP"
-	  sudo ike-scan -M -A --id=GroupVPN $IP | tee ikescan-$IP-aggressive-mode.txt
+	  echo "# ike-scan -M -A --id=GroupVPN $IP" | tee ikescan-$IP-aggressive-mode.txt
+	  sudo ike-scan -M -A --id=GroupVPN $IP | tee -a ikescan-$IP-aggressive-mode.txt
   elif [ $OPTION == '-t' ];then
 	  echo "# generate-transforms.sh | xargs --max-lines=8 sudo ike-scan $IP | grep Handshake" | tee ikescan-$IP-generate-transforms.txt
 	  bash generate-transforms.sh | xargs --max-lines=8 sudo ike-scan $IP | grep Handshake | tee -a ikescan-$IP-generate-transforms.txt
