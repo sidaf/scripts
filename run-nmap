@@ -27,19 +27,19 @@ run_tcp() {
     fi
   fi
 
-  echo "# nmap -v -Pn -sT -sV --version-intensity 9 -O --script=default --traceroute -T4 -p T:$TCP --initial-rtt-timeout=200ms --min-rtt-timeout=100ms --max-rtt-timeout=1000ms --defeat-rst-ratelimit --open --stats-every 15s -oA tcp -iL $FILE" | tee nmap_tcp.out
-  nmap -v -Pn -sT -sV --version-intensity 9 -O --script=default --traceroute -T4 -p T:$TCP --initial-rtt-timeout=200ms --min-rtt-timeout=100ms --max-rtt-timeout=1000ms --defeat-rst-ratelimit --open --stats-every 15s -oA tcp -iL $FILE | tee -a nmap_tcp.out
+  echo "# nmap -v -Pn -sS -sV --version-intensity 9 -O --script=default --traceroute -T4 -p T:$TCP --initial-rtt-timeout=200ms --min-rtt-timeout=100ms --max-rtt-timeout=1000ms --defeat-rst-ratelimit --open --stats-every 15s -oA tcp -iL $FILE" | tee tcp.out
+  nmap -v -Pn -sS -sV --version-intensity 9 -O --script=default --traceroute -T4 -p T:$TCP --initial-rtt-timeout=200ms --min-rtt-timeout=100ms --max-rtt-timeout=1000ms --defeat-rst-ratelimit --open --stats-every 15s -oA tcp -iL $FILE | tee -a tcp.out
 }
 
 run_udp() {
   FILE=$1
 
-  echo "# nmap -v -Pn -sU -sV --version-intensity 2 -O --script=default --traceroute -T4 -p U:$UDP --initial-rtt-timeout=200ms --min-rtt-timeout=100ms --max-rtt-timeout=1000ms --defeat-rst-ratelimit --open --stats-every 15s -oA udp -iL $FILE" | tee nmap_udp.out
-  nmap -v -Pn -sU -sV --version-intensity 2 -O --script=default --traceroute -T4 -p U:$UDP --initial-rtt-timeout=200ms --min-rtt-timeout=100ms --max-rtt-timeout=1000ms --defeat-rst-ratelimit --open --stats-every 15s -oA udp -iL $FILE | tee -a nmap_udp.out
+  echo "# nmap -v -Pn -sU -sV --version-intensity 2 -O --script=default --traceroute -T4 -p U:$UDP --initial-rtt-timeout=200ms --min-rtt-timeout=100ms --max-rtt-timeout=1000ms --defeat-rst-ratelimit --open --stats-every 15s -oA udp -iL $FILE" | tee udp.out
+  nmap -v -Pn -sU -sV --version-intensity 2 -O --script=default --traceroute -T4 -p U:$UDP --initial-rtt-timeout=200ms --min-rtt-timeout=100ms --max-rtt-timeout=1000ms --defeat-rst-ratelimit --open --stats-every 15s -oA udp -iL $FILE | tee -a udp.out
 }
 
 if [ -z $1 ];then
-  printf "\nSyntax: ./$0 <file of ips> <Option|-t (tcp) or -u (udp) or -a (tcp & udp)> <optional: file of tcp ports>\n\n"
+  printf "\nSyntax: $0 <file of ips> <Option|-t (tcp) or -u (udp) or -a (tcp & udp)> <optional: file of tcp ports>\n\n"
 else
   FILE=$1
   OPTION=$2

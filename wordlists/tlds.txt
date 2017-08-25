@@ -993,7 +993,6 @@ its.me
 priv.me
 org.mg
 nom.mg
-gov.mg
 prd.mg
 tm.mg
 edu.mg
@@ -1131,7 +1130,6 @@ net.ph
 org.ph
 mil.ph
 ngo.ph
-i.ph
 gov.ph
 edu.ph
 com.pk
@@ -1461,7 +1459,6 @@ tambov.ru
 tatarstan.ru
 tom.ru
 tomsk.ru
-tsaritsyn.ru
 tsk.ru
 tula.ru
 tuva.ru

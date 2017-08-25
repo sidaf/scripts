@@ -1,9 +1,0 @@
-#!/bin/bash
-
-if [ -z $1 ]; 
-  then printf "\nSyntax: $0 <file of ips>\n\n"
-else
-  DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-  FILE=$1
-  $DIR/run-masscan $1 2000 && $DIR/run-nmap $1 -a ports.list
-fi

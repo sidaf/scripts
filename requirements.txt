@@ -1,6 +1,6 @@
 dnspython
 iptools
-libnmap
+python-libnmap
 pycurl
 requests
 tqdm
