@@ -10,6 +10,7 @@ import argparse
 import os
 import socket
 import re
+from urlparse import urlparse
 try:
     import xml.etree.cElementTree as ElementTree
 except ImportError:
@@ -23,21 +24,31 @@ except ImportError:
 def error(*objects):
     print(*objects, file=sys.stderr)
 
-
 def info(*objects):
     print(*objects, file=sys.stdout)
 
+def check_file(xml_file):
+    if not os.path.exists(xml_file):
+        error("File '%s' does not exist." % xml_file)
+        exit(1)
+    if not os.access(xml_file, os.R_OK):
+        error("File '%s' is not readable." % xml_file)
+        exit(1)
 
-def extract(xml_files, protocol_regex, service_regex, tunnel_regex, product_regex):
+def normalize_service(service, tunnel):
+    if service.startswith('http-'):
+        service = 'http'
+    if service.startswith('https-'):
+        service = 'https'
+    if tunnel == 'ssl':
+        if service == 'http' or service == 'upnp' or service == 'socks5':
+            service = 'https'
+    return service
+
+def print_targets(xml_files, protocol_regex, service_regex, tunnel_regex, product_regex, service_prefix):
     targets = set()
     for xml_file in xml_files:
-        if not os.path.exists(xml_file):
-            error("File '%s' does not exist." % xml_file)
-            exit(1)
-
-        if not os.access(xml_file, os.R_OK):
-            error("File '%s' is not readable." % xml)
-            exit(1)
+        check_file(xml_file)
 
         xml = ElementTree.parse(xml_file)
         try:
@@ -58,14 +69,7 @@ def extract(xml_files, protocol_regex, service_regex, tunnel_regex, product_rege
                             tunnel = service_xml.get('tunnel', "")
                             product = service_xml.get('product', "")
 
-                            # rename some of the standard nmap service names so that they are a bit easier to deal with
-                            if service.startswith('http-'):
-                                service = 'http'
-                            if service.startswith('https-'):
-                                service = 'https'
-                            if tunnel == 'ssl':
-                                if service == 'http' or service == 'upnp' or service == 'socks5':
-                                    service = 'https'
+                            service = normalize_service(service, tunnel)
 
                             protocol_result, service_result, tunnel_result, product_result = True, True, True, True
                             if protocol_regex and not re.search(protocol_regex, protocol, re.IGNORECASE):
@@ -78,17 +82,43 @@ def extract(xml_files, protocol_regex, service_regex, tunnel_regex, product_rege
                                 product_result = False
 
                             if protocol_result and service_result and tunnel_result and product_result:
-                                targets.add("%s:%s" % (address, portid))
+                                if not service_prefix:
+                                    targets.add("%s:%s" % (address, portid))
+                                else:
+                                    targets.add("%s://%s:%s" % (service, address, portid))
         except AttributeError as e:
-            error("Error parsing file '%s', %s" % (xml, e))
-            exit(1)
-    return targets
-
-
-def print_target(xml_files, protocol_regex, service_regex, tunnel_regex, product_regex):
-    targets = extract(xml_files, protocol_regex, service_regex, tunnel_regex, product_regex)
-    for target in sorted(targets, key=lambda item: socket.inet_aton(item.split(':', 1)[0])):
+            error("Error parsing file '%s', %s. Skipping!" % (xml, e))
+            continue
+    for target in sorted(targets, key=lambda item: socket.inet_aton(urlparse(item).netloc.split(':', 1)[0])):
         print(target)
+
+def print_services(xml_files):
+    services = set()
+    for xml_file in xml_files:
+        check_file(xml_file)
+
+        xml = ElementTree.parse(xml_file)
+        try:
+            for host in xml.findall('host'):
+                status_xml = host.find('status', "")
+                status = status_xml.get('state') if status_xml is not None else None
+                if status == 'up':
+                    for port in host.find('ports').findall('port'):
+                        state = port.find('state').get('state', "")
+                        if state == 'open':
+                            service_xml = port.find('service')
+                            if service_xml is None:
+                                continue
+                            service = service_xml.get('name', "")
+                            tunnel = service_xml.get('tunnel', "")
+                            service = normalize_service(service, tunnel)
+                            services.add(service)
+        except AttributeError as e:
+            error("Error parsing file '%s', %s. Skipping!" % (xml, e))
+            continue
+    for service in sorted(list(services)):
+        print(service)
+
 
 ########
 # MAIN #
@@ -105,24 +135,30 @@ if __name__ == '__main__':
                         metavar='INPUT')
     parser.add_argument('-p', '--protocol',
                         action='store',
-                        help='protocol filter regex',
+                        help='filter targets by protocol name',
                         metavar='REGEX',
                         default=None)
     parser.add_argument('-s', '--service',
                         action='store',
-                        help='service filter regex',
+                        help='filter targets by service name',
                         metavar='REGEX',
                         default=None)
     parser.add_argument('-t', '--tunnel',
                         action='store',
-                        help='tunnel filter regex',
+                        help='filter targets by tunnel name',
                         metavar='REGEX',
                         default=None)
     parser.add_argument('-n', '--name',
                         action='store',
-                        help='product name filter regex',
+                        help='filter targets by product name',
                         metavar='REGEX',
                         default=None)
+    parser.add_argument('-x', '--prefix',
+                        action='store_true',
+                        help='prefix target with service name e.g. service://target')
+    parser.add_argument('-l', '--list',
+                        action='store_true',
+                        help='list services found')
     args = parser.parse_args()
 
     for xml in args.files:
@@ -133,5 +169,7 @@ if __name__ == '__main__':
             error("File '%s' is not readable." % xml)
             exit(1)
 
-    print_target(args.files, args.protocol, args.service, args.tunnel, args.name)
-
+    if args.unique:
+        print_services(args.files)
+    else:
+        print_targets(args.files, args.protocol, args.service, args.tunnel, args.name, args.prefix)

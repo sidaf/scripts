@@ -137,9 +137,6 @@ if __name__ == '__main__':
     parser.add_argument('-d', '--description',
                         action='store_true',
                         help='print column headers, by default no headers are printed')
-    parser.add_argument('-s', '--services',
-                        action='store_true',
-                        help='list unique services')
     args = parser.parse_args()
 
     for xml in args.files:

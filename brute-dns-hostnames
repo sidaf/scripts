@@ -70,7 +70,7 @@ def check_wildcard(domain):
             epochtime = str(int(time.time()))
             answers = resolver.query('a%s.%s' % (epochtime, domain))
             wildcard = answers.response.answer[0][0]
-            sys.stderr.write('%s => Wildcard entry found, %s.\n' % (domain, wildcard))
+            sys.stderr.write('%s => Wildcard entry found, %s\n' % (domain, wildcard))
         except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer, dns.resolver.NoNameservers):
             #sys.stderr.write('%s => No record found.\n' % (hostname))
             pass

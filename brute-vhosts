@@ -37,14 +37,14 @@ def brute_vhost(vhost):
                 sys.stderr.write('%s => Request timed out.\n' % (target))
             continue
         else:
-            if check_canary(response):
+            if not canary_exists(response):
                 sys.stdout.write('%s,%s\n' % (target, vhost))
                 sys.stdout.flush()
         # break out of the loop
         attempt = max_attempts
 
 
-def check_canary(response):
+def canary_exists(response):
     if 200 <= response.status_code <= 299:
         if canary == response.text:
             return True
@@ -119,11 +119,14 @@ if __name__ == '__main__':
 
     global target
     target = args.target
-    
+
     global canary
     canary = obtain_canary()
     if canary is None:
         exit(1)
+
+    sys.stdout.write('%s,\n' % (target))
+    sys.stdout.flush()
 
     # remove duplicates and sort
     vhosts = list(set(vhosts))
