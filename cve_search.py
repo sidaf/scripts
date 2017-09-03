@@ -10,7 +10,7 @@ import argparse
 import json
 import re
 
-sys.path.append('/usr/share/vfeed-git/')
+sys.path.append('/usr/share/vfeed/')
 from config.constants import db
 from lib.core.methods import CveExploit
 from lib.core.methods import CveInfo

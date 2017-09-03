@@ -1,0 +1,132 @@
+#!/usr/bin/env python2
+
+###########
+# IMPORTS #
+###########
+
+import sys
+import re
+import argparse
+from multiprocessing import Pool
+import signal
+import socket
+import requests
+
+#############
+# FUNCTIONS #
+#############
+
+def resolve(address):
+    max_attempts = 3
+    attempt = 0
+    while attempt < max_attempts:
+        try:
+            url = "http://whois.arin.net/ui/query.do"
+            headers = {'Accept': 'application/json'}
+            payload = {'flushCache': 'false', 'q': address}
+            response = requests.post(url, headers=headers, data=payload)
+        except:
+            #import traceback
+            #traceback.print_exc()
+            attempt += 1
+            if attempt == max_attempts:
+                sys.stderr.write('%s => Request timed out.\n' % (address))
+            continue
+        else:
+            try:
+                if get_orgRef(response) == 'APNIC' or get_orgRef(response) == 'RIPE' or get_orgRef(response) == 'LACNIC' or get_orgRef(response) == 'AFRINIC':
+                    sys.stderr.write('%s => Registered with another regional internet registry, %s.' % (address, response.json['ns4:pft']['net']['orgRef']['@name']))
+                    break
+
+                try: # Reallocated IP space
+                    organisation = response.json()['ns4:pft']['customer']['name']['$']
+                    description = response.json()['ns4:pft']['customer']['handle']['$']
+                except KeyError:
+                    try: # Direct allocation
+                        organisation = response.json()['ns4:pft']['net']['orgRef']['@name']
+                        description = response.json()['ns4:pft']['net']['orgRef']['@handle']
+                    except KeyError:
+                        sys.stderr.write("%s => Error querying response" % address)
+                        break
+
+                netblocks = response.json()['ns4:pft']['net']['netBlocks']['netBlock']
+                if type(netblocks) == dict: # single net block
+                    netblock = response.json()['ns4:pft']['net']['netBlocks']['netBlock']
+                    cidr = netblock['cidrLength']['$']
+                    description = netblock['description']['$']
+                    endAddress = netblock['endAddress']['$']
+                    startAddress = netblock['startAddress']['$']
+                    host_netblock = "%s/%s" % (startAddress, cidr)
+                elif type(netblocks) == list: # multiple netblocks
+                    host_netblock = ""
+                    for netblock in netblocks:
+                        cidr = netblock['cidrLength']['$']
+                        description = netblock['description']['$']
+                        endAddress = netblock['endAddress']['$']
+                        startAddress = netblock['startAddress']['$']
+                        nb = "%s/%s" % (startAddress, cidr)
+                        host_netblock += "%s|" % nb
+                    host_netblock = re.sub(r'\|*$', '', host_netblock)
+
+                sys.stdout.write('%s,%s,%s,%s\n' % (address, host_netblock, organisation, description))
+                sys.stdout.flush()
+            except TypeError as te:
+                sys.stderr.write('%s => Error consuming data, %s\n' % (address, te))
+                break
+            except ValueError as ve:
+                sys.stderr.write('%s => Error consuming data, %s\n' % (address, ve))
+                break
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                break
+        # break out of the loop
+        attempt = max_attempts
+
+def get_orgRef(response):
+    try:
+        handle = response.json()['ns4:pft']['net']['orgRef']['@handle']
+    except KeyError:
+        return None
+    return handle
+
+def initializer():
+    """Ignore CTRL+C in the worker process."""
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+
+
+########
+# MAIN #
+########
+
+if __name__ == '__main__':
+    desc = 'Query the ARIN Whois RWS service to retrive netblock and organisation information about an IP address.'
+
+    parser = argparse.ArgumentParser(description=desc)
+    parser.add_argument('file',
+                        nargs='?',
+                        type=argparse.FileType('r'),
+                        action='store',
+                        help='file containing a list of IP addresses split by a newline, otherwise read from STDIN',
+                        metavar='FILE',
+                        default=sys.stdin)
+    args = parser.parse_args()
+
+    try:
+        addresses = [line.strip() for line in args.file if len(line.strip())>0 and line[0] is not '#']
+    except KeyboardInterrupt:
+        exit()
+
+    # remove duplicates and sort
+    addresses = list(set(addresses))
+    addresses = sorted(addresses, key=lambda item: socket.inet_aton(item))
+
+    pool = Pool(processes=10, initializer=initializer)
+    try:
+        pool.map(resolve, addresses)
+        pool.close()
+        pool.join()
+    except KeyboardInterrupt:
+        pool.terminate()
+        pool.join()
+

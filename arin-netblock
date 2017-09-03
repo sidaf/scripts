@@ -1,0 +1,102 @@
+#!/usr/bin/env python2
+
+###########
+# IMPORTS #
+###########
+
+import sys
+import argparse
+from multiprocessing import Pool
+import signal
+import requests
+
+#############
+# FUNCTIONS #
+#############
+
+def resolve(netblock):
+    max_attempts = 3
+    attempt = 0
+    while attempt < max_attempts:
+        try:
+            url = "http://whois.arin.net/rest/cidr/%s" % netblock
+            headers = {'Accept': 'application/json'}
+            response = requests.get(url, headers=headers)
+        except:
+            #import traceback
+            #traceback.print_exc()
+            attempt += 1
+            if attempt == max_attempts:
+                sys.stderr.write('%s => Request timed out.\n' % (netblock))
+            continue
+        else:
+            try:
+                if 'No record found for the handle provided.' in response.text:
+                    sys.stderr.write('%s => No record found.\n' % (netblock))
+                    break
+                for ref in ['orgRef', 'customerRef']:
+                    if ref in response.json()['net']:
+                        organisation = response.json()['net'][ref]['@name']
+                        handle = response.json()['net'][ref]['$']
+                        sys.stdout.write('Netblock: %s\nURL: %s\nOrganisation: %s\nURL: %s\n\n' % (netblock, url, organisation, handle))
+                        sys.stdout.flush()
+            except TypeError as te:
+                sys.stderr.write('%s => Error consuming data, %s\n' % (netblock, te))
+                break
+            except ValueError as ve:
+                sys.stderr.write('%s => Error consuming data, %s\n' % (netblock, ve))
+                break
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                break
+        # break out of the loop
+        attempt = max_attempts
+
+def get_orgRef(response):
+    try:
+        handle = response.json()['ns4:pft']['net']['orgRef']['@handle']
+    except KeyError:
+        return None
+    return handle
+
+def initializer():
+    """Ignore CTRL+C in the worker process."""
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+
+
+########
+# MAIN #
+########
+
+if __name__ == '__main__':
+    desc = 'Query the ARIN Whois RWS service to retrive related organisation information for a network block.'
+
+    parser = argparse.ArgumentParser(description=desc)
+    parser.add_argument('file',
+                        nargs='?',
+                        type=argparse.FileType('r'),
+                        action='store',
+                        help='file containing a list of network blocks split by a newline, otherwise read from STDIN',
+                        metavar='FILE',
+                        default=sys.stdin)
+    args = parser.parse_args()
+
+    try:
+        netblocks = [line.strip() for line in args.file if len(line.strip())>0 and line[0] is not '#']
+    except KeyboardInterrupt:
+        exit()
+
+    # remove duplicates and sort
+    netblocks = list(set(netblocks))
+    netblocks = sorted(netblocks)
+
+    pool = Pool(processes=10, initializer=initializer)
+    try:
+        pool.map(resolve, netblocks)
+        pool.close()
+        pool.join()
+    except KeyboardInterrupt:
+        pool.terminate()
+        pool.join()
+

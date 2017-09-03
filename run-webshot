@@ -1,0 +1,11 @@
+#!/bin/bash
+
+if [ -z $2 ]; 
+  then printf "\nSyntax: $0 <target|e.g. http[s]://address:port/> <vhost|e.g. www.google.co.uk>\n\n"
+else
+  TARGET=$1; VHOST=${2:-};
+  if [[ -n $VHOST ]]; then
+    phantomjs --ignore-ssl-errors=yes --ssl-protocol=ANY "webshot.js" $TARGET $VHOST $FILE 1024px*768px
+  else
+  fi
+fi

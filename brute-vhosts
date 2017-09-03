@@ -32,6 +32,8 @@ def brute_vhost(vhost):
             url, _, _, _, _, _, resolve = curl.explode_target(target, vhost)
             response = curl.request(method='GET', url=url, resolve=resolve)
         except:
+            #import traceback
+            #traceback.print_exc()
             attempt += 1
             if attempt == max_attempts:
                 sys.stderr.write('%s => Request timed out.\n' % (target))
@@ -74,6 +76,8 @@ def obtain_canary():
             else:
                 canary = response.status_code
         except:
+            #import traceback
+            #traceback.print_exc()
             attempt += 1
             if attempt == max_attempts:
                 sys.stderr.write('%s => Request timed out.\n' % (target))

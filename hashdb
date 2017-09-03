@@ -1,0 +1,89 @@
+#!/usr/bin/env python2
+
+###########
+# IMPORTS #
+###########
+
+import os
+import sys
+import argparse
+from multiprocessing import Pool
+import signal
+import requests
+
+import json
+
+
+####################
+# GLOBAL VARIABLES #
+####################
+
+global url
+
+
+#############
+# FUNCTIONS #
+#############
+
+def lookup(domain):
+    headers = {'Accept': 'application/json'}
+    response = requests.get("%s/domains?name=%s" % (url, domain), headers=headers)
+    data = response.json()
+    for entry in data['entries']:
+        sys.stdout.write('%s,%s,%s,%s\n' % (entry['attributes']['user']['email'].lower(),
+                                            entry['attributes']['credential']['plaintext'],
+                                            entry['attributes']['meta']['source_name'],
+                                            entry['attributes']['meta']['dump_date']))
+        sys.stdout.flush()
+
+
+def initializer():
+    """Ignore CTRL+C in the worker process."""
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+
+
+########
+# MAIN #
+########
+
+if __name__ == '__main__':
+    desc = 'Obtain observed compromised accounts from HASHDB for the supplied domains and output results in CSV format.'
+
+    parser = argparse.ArgumentParser(description=desc)
+    parser.add_argument('file',
+                        nargs='?',
+                        type=argparse.FileType('r'),
+                        action='store',
+                        help='file containing a list of domains split by a newline, otherwise read from STDIN',
+                        metavar='FILE',
+                        default=sys.stdin)
+    args = parser.parse_args()
+
+    # Check for DNSDB env
+    try:
+        global url
+        url = os.environ['HASHDB']
+        if not url:
+            sys.stderr.write("Error: HASHDB environment variable is empty, unable to obtain server url, please set accordingly.\n")
+            exit(1)
+    except KeyError:
+        sys.stderr.write("Error: HASHDB environment variable not set, unable to obtain server url, please set accordingly.\n")
+        exit(1)
+
+    try:
+        domains = [line.strip() for line in args.file if len(line.strip())>0 and line[0] is not '#']
+    except KeyboardInterrupt:
+        exit()
+
+    # remove duplicates and sort
+    domains = list(set(domains))
+    domains = sorted(domains)
+
+    pool = Pool(processes=2, initializer=initializer)
+    try:
+        pool.map(lookup, domains)
+        pool.close()
+        pool.join()
+    except KeyboardInterrupt:
+        pool.terminate()
+        pool.join()

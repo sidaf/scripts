@@ -1,0 +1,9 @@
+admin:admin
+admin:password
+dcmadmin:passw0rd
+postgres:
+postgres:123
+postgres:admin
+postgres:amber
+postgres:password
+postgres:postgres

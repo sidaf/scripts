@@ -1,5 +1,6 @@
 dnspython
 iptools
+lxml
 python-libnmap
 pycurl
 requests

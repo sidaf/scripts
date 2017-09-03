@@ -249,7 +249,8 @@ def explode_target(url, vhost):
         resolve = None
 
     # So by now we should have gone from something like this:
-    #    target: http://127.0.0.1|www.home.com
+    #    target: http://127.0.0.1:80
+    #    vhost: www.home.com
     # To this:
     #    url: http://www.home.com:80
     #    resolve: www.home.com:127.0.0.1

@@ -89,8 +89,12 @@ def print_targets(xml_files, protocol_regex, service_regex, tunnel_regex, produc
         except AttributeError as e:
             error("Error parsing file '%s', %s. Skipping!" % (xml, e))
             continue
-    for target in sorted(targets, key=lambda item: socket.inet_aton(urlparse(item).netloc.split(':', 1)[0])):
-        print(target)
+    if not service_prefix:
+        for target in sorted(targets, key=lambda item: socket.inet_aton(item.split(':', 1)[0])):
+            print(target)
+    else:
+        for target in sorted(targets, key=lambda item: socket.inet_aton(urlparse(item).netloc.split(':', 1)[0])):
+            print(target)
 
 def print_services(xml_files):
     services = set()
@@ -169,7 +173,7 @@ if __name__ == '__main__':
             error("File '%s' is not readable." % xml)
             exit(1)
 
-    if args.unique:
+    if args.list:
         print_services(args.files)
     else:
         print_targets(args.files, args.protocol, args.service, args.tunnel, args.name, args.prefix)

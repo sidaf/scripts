@@ -1,0 +1,186 @@
+#!/usr/bin/env python2
+
+###########
+# IMPORTS #
+###########
+
+import sys
+import os
+import argparse
+from multiprocessing import Pool, Value, Lock
+import signal
+from urlparse import urljoin
+import modules.curl as curl
+
+
+####################
+# GLOBAL VARIABLES #
+####################
+
+global target
+global resolve
+global vhost
+global method
+global ecode
+global emesg
+global request_max_attempt
+global target_max_attempt
+
+##########################
+# PROCESS HELPER OBJECT #
+#########################
+
+class Counter(object):
+    def __init__(self, initval=0):
+        self.val = Value('i', initval)
+        self.lock = Lock()
+
+    def increment(self):
+        with self.lock:
+            self.val.value += 1
+
+    def value(self):
+        with self.lock:
+            return self.val.value
+
+
+#############
+# FUNCTIONS #
+#############
+
+def brute(candidate):
+    global target_attempt
+    attempt = 0
+    while attempt < request_max_attempt and target_attempt.value() < target_max_attempt:
+        try:
+            response = curl.request(method=method, url=candidate, resolve=resolve)
+        except:
+            #import traceback
+            #traceback.print_exc()
+            attempt += 1
+            if attempt == request_max_attempt:
+                sys.stderr.write("%s => Maximum error count reached for candidate, skipping.\n" % (candidate))
+                target_attempt.increment()
+                if target_attempt.value() >= target_max_attempt:
+                    sys.stderr.write("%s => Maximum error count reached for target, skipping.\n" % (target))
+            continue
+        else:
+            if not ((response.status_code == 200 and emesg is not None and emesg in response.text) \
+                    or response.status_code == ecode or response.status_code == 404):
+                # Explode target into usable components
+                url, scheme, host, _, port, resource, _ = curl.explode_target(candidate, None)
+
+                if resolve is not None and host.lower() == resolve.split(':')[0].lower():
+                    ip_address = resolve.split(':')[1]
+                    sys.stdout.write("%s,%s,%s,%s://%s:%s%s\n" % (method, response.status_code, host, scheme, ip_address, port, resource))
+                    sys.stdout.flush()
+                else:
+                    sys.stdout.write('%s,%s,,%s\n' % (method, response.status_code, url))
+                    sys.stdout.flush()
+        # break out of the loop
+        attempt = request_max_attempt
+
+def initializer(counter):
+    global target_attempt
+    target_attempt = counter
+
+    """Ignore CTRL+C in the worker process."""
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+
+
+########
+# MAIN #
+########
+
+if __name__ == '__main__':
+    desc = 'Check a target web server for interesting resources located in predictable locations.'
+
+    parser = argparse.ArgumentParser(description=desc)
+    parser.add_argument('-v', '--vhost',
+                        action='store',
+                        help='virtual host',
+                        metavar='HOST',
+                        default=None)
+    parser.add_argument('--ecode',
+                        action='store',
+                        help='status code to match as page not found identifier (default: autodetect)',
+                        metavar='CODE',
+                        default=None)
+    parser.add_argument('--emesg',
+                        action='store',
+                        help='text to match as a page not found identifier (default: autodetect)',
+                        metavar='TEXT',
+                        default=None)
+    required = parser.add_argument_group('required arguments')
+    required.add_argument('-t', '--target',
+                          action='store',
+                          help='target web server URL (http[s]://address:port)',
+                          metavar='URL',
+                          required=True)
+    required.add_argument('-m', '--method',
+                          action='store',
+                          help='HTTP method to use for requests (default: GET)',
+                          metavar='METHOD',
+                          default='GET')
+    required.add_argument('--request-max-attempt',
+                          action='store',
+                          help='skip request after NUM failed connection attempts (default: 3)',
+                          metavar='NUM',
+                          default=3)
+    required.add_argument('--target-max-attempt',
+                          action='store',
+                          help='stop crawl after NUM failed request max attempts (default: 2)',
+                          metavar='NUM',
+                          default=2)
+    required.add_argument('-w', '--wordlist',
+                          action='store',
+                          help='a list of resources to use for brute force attack (default: %s/wordlists/web_resources.txt)' % os.path.dirname(os.path.realpath(__file__)),
+                          metavar='FILE',
+                          default="%s/wordlists/web_resources.txt" % os.path.dirname(os.path.realpath(__file__)))
+    args = parser.parse_args()
+
+    global target
+    target = args.target
+
+    # Explode target into useful components
+    global resolve
+    url, _, _, _, _, _, resolve = curl.explode_target(args.target, args.vhost)
+
+    global vhost
+    vhost = args.vhost
+
+    global method
+    method = args.method
+
+    global ecode
+    ecode = args.ecode
+
+    global emesg
+    emesg = args.emesg
+
+    global request_max_attempt
+    request_max_attempt = args.request_max_attempt
+
+    global target_max_attempt
+    target_max_attempt = args.target_max_attempt
+
+    with open(args.wordlist) as fp:
+        resources = [line.strip() for line in fp if len(line.strip())>0 and line[0] is not '#']
+
+    urls = list()
+    for resource in resources:
+        if resource.startswith('/'):
+            resource = resource[1:]
+        urls.append(urljoin(url, resource, allow_fragments=False))
+
+    if ecode is None and emesg is None:
+        ecode, emesg = curl.detect_page_not_found(method=method, url=url, resolve=resolve)
+
+    pool = Pool(processes=10, initializer=initializer, initargs=(Counter(0),))
+    try:
+        pool.map(brute, urls)
+        pool.close()
+        pool.join()
+    except KeyboardInterrupt:
+        pool.terminate()
+        pool.join()
