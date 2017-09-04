@@ -58,12 +58,12 @@ def extract(xml_files, hosts_up_only=True, open_ports_only=True, ip_address_filt
                             service = service_xml.get('name', "") if service_xml is not None else None
                             tunnel = service_xml.get('tunnel', "") if service_xml is not None else None
                             # rename some of the standard nmap service names so that they are a bit easier to deal with
-                            if service.startswith('http-'):
+                            if service and service.startswith('http-'):
                                 service = 'http'
-                            if service.startswith('https-'):
+                            if service and service.startswith('https-'):
                                 service = 'https'
-                            if tunnel == 'ssl':
-                                if service == 'http' or service == 'upnp' or service == 'socks5':
+                            if tunnel and tunnel == 'ssl':
+                                if service and (service == 'http' or service == 'upnp' or service == 'socks5'):
                                     service = 'https'
                             hosts.append(dict(ip_address=address,
                                               host=hostname,
