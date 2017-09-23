@@ -1,64 +1,63 @@
-ADMIN:AIMS
-ADONI:BPMS
-ARIS9:N'*ARIS!1dm9n#'
-FB:AIMS
-I2b2demodata2:i2b2demodata2
-I2b2demodata:i2b2demodata
-I2b2hive:i2b2hive
-I2b2metadata2:i2b2metadata2
-I2b2metadata:i2b2metadata
-I2b2workdata2:i2b2workdata2
-I2b2workdata:i2b2workdata
-LENEL:MULTIMEDIA
-aaAdmin:pwAdmin
-aaPower:pwPower
-aaUser:pwUser
-aadbo:pwddbo
-admin:admin
-admin:gnos
-admin:netxms
-admin:trinity
-cic:cic
-cic:cic!23456789
-gts:opengts
-maxadmin:maxadmin
-maxreg:maxreg
-mcUser:medocheck123
-mxintadm:mxintadm
-sa:
-sa:$easyWinArt4
-sa:$ei$micMicro
-sa:42Emerson42Eme
-sa:Administrator1
-sa:Cardio.Perfect
-sa:DBA!sa@EMSDB123
-sa:Dr8gedog
-sa:M3d!aP0rtal
-sa:Pass@123
-sa:Password123
-sa:PracticeUser1
-sa:RPSsql12345
-sa:SECAdmin1
-sa:SecurityMaster08
-sa:SilkCentral12!34
-sa:V4in$ight
-sa:admin
-sa:capassword
-sa:cic
-sa:cic!23456789
-sa:default
-sa:dr8gedog
-sa:password
-sa:sa
-sa:skf_admin1
-sa:splendidcrm2005
-sa:sqlserver
-sa:superadmin
-sa:vantage12!
-secure:SecurityMaster08
-stream:stream-1
-wasadmin:wasadmin
-wwAdmin:wwAdmin
-wwPower:wwPower
-wwUser:wwUser
-wwdbo:pwddbo
+ADMIN AIMS
+ADONI BPMS
+ARIS9 N'*ARIS!1dm9n#'
+FB AIMS
+I2b2demodata2 i2b2demodata2
+I2b2demodata i2b2demodata
+I2b2hive i2b2hive
+I2b2metadata2 i2b2metadata2
+I2b2metadata i2b2metadata
+I2b2workdata2 i2b2workdata2
+I2b2workdata i2b2workdata
+LENEL MULTIMEDIA
+aaAdmin pwAdmin
+aaPower pwPower
+aaUser pwUser
+aadbo pwddbo
+admin admin
+admin gnos
+admin netxms
+admin trinity
+cic cic
+cic cic!23456789
+gts opengts
+maxadmin maxadmin
+maxreg maxreg
+mcUser medocheck123
+mxintadm mxintadm
+sa $easyWinArt4
+sa $ei$micMicro
+sa 42Emerson42Eme
+sa Administrator1
+sa Cardio.Perfect
+sa DBA!sa@EMSDB123
+sa Dr8gedog
+sa M3d!aP0rtal
+sa Pass@123
+sa Password123
+sa PracticeUser1
+sa RPSsql12345
+sa SECAdmin1
+sa SecurityMaster08
+sa SilkCentral12!34
+sa V4in$ight
+sa admin
+sa capassword
+sa cic
+sa cic!23456789
+sa default
+sa dr8gedog
+sa password
+sa sa
+sa skf_admin1
+sa splendidcrm2005
+sa sqlserver
+sa superadmin
+sa vantage12!
+secure SecurityMaster08
+stream stream-1
+wasadmin wasadmin
+wwAdmin wwAdmin
+wwPower wwPower
+wwUser wwUser
+wwdbo pwddbo

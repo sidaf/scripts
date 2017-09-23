@@ -57,8 +57,8 @@ for line in $(grep -H 'Auth=PSK' ikescan-*-aggressive-mode.txt); do
 				printf '\nDammit Bobby. Empty dh\n';
 				exit 0
 			else
-				bash run-ikeforce.sh $IP $CRYPTO $HMAC 1 $DH;
-        		echo
+				bash run-ikeforce $IP $CRYPTO $HMAC 1 $DH;
+        echo
 			fi
 		fi
 	fi

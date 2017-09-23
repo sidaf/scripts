@@ -19,7 +19,6 @@
 1234567890
 1234qwer
 123654
-123654123456
 123abc
 123qwe
 131313
@@ -65,6 +64,7 @@ andrea
 andrew
 angel
 angels
+anonymous
 anthony
 apples
 asdasd
@@ -88,6 +88,7 @@ benjamin
 biteme
 blahblah
 bubbles
+bug
 buster
 butterfly
 canada
@@ -96,6 +97,8 @@ carolina
 caroline
 champion
 changeme
+Changeme
+CHANGEME
 charlie
 cheese
 chelsea
@@ -125,6 +128,7 @@ falcon
 family
 fdsa
 ferrari
+FGTAbc11*xy+Qqz27
 flower
 football
 forever
@@ -132,6 +136,7 @@ forum
 freedom
 friend
 friends
+ftp
 fuck
 fuckme
 fuckyou
@@ -143,6 +148,7 @@ genesis
 george
 ginger
 golden
+guest
 hannah
 harley
 hello
@@ -166,6 +172,10 @@ justin
 killer
 klaster
 letmein
+letmein!
+LetMeIn
+LetMeIn!
+LETMEIN
 liverpool
 london
 love
@@ -198,13 +208,28 @@ nothing
 number1
 oliver
 orange
+owaspbwa
 panther
 paradise
 pass
 passport
 passw0rd
 password
+Password
+Password!
 password1
+Password1
+Password!1
+Password1!
+password12
+Password12
+password123
+password123$
+Password123
+Password!123
+Password123!
+Password123$
+Password1234
 pepper
 phoenix
 photoshop
@@ -217,6 +242,9 @@ purple
 pussy
 qazwsx
 qwerty
+Qwerty
+QWERTY
+qwerty123
 qwertyui
 qwertyuiop
 rachel
@@ -245,6 +273,7 @@ starwars
 success
 summer
 sunshine
+<<< %s(un='%s') = %u
 superman
 system
 taylor
@@ -254,6 +283,7 @@ testing
 thomas
 thunder
 tigger
+toor
 trustno1
 tweety
 veronica

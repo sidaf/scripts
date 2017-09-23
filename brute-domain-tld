@@ -39,6 +39,8 @@ def brute_ns(domain):
         except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer, dns.resolver.NoNameservers):
             #sys.stderr.write('%s => No record found.\n' % (domain))
             pass
+        except dns.name.EmptyLabel:
+            sys.stderr.write('%s => A DNS label is empty.\n' % (domain))
         except dns.resolver.Timeout:
             attempt += 1
             if attempt == max_attempts:
@@ -92,10 +94,10 @@ if __name__ == '__main__':
     nameserver = args.nameserver
 
     with open(args.wordlist) as fp:
-        wordlist = [line.strip().lower() for line in fp if len(line)>0 and line[0] is not '#']
+        wordlist = [line.strip().lower() for line in fp if len(line.strip())>0 and line[0] is not '#']
 
     try:
-        domains = [line.strip() for line in args.file]
+        domains = [line.strip().lower() for line in args.file if len(line.strip())>0 and line[0] is not '#']
     except KeyboardInterrupt:
         exit()
 
