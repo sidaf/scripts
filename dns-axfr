@@ -22,6 +22,7 @@ import signal
 ####################
 
 global nameserver
+global addresses
 
 
 #############
@@ -60,8 +61,9 @@ def axfr(domain):
             fqdn = "%s.%s" % (name, domain)
             if rtype == "A":
                 address = rdata.split(' ', 1)[0].split('\n')[0]
-                sys.stdout.write('%s,%s\n' % (address, fqdn))
-                sys.stdout.flush()
+                if addresses is None or address in addresses:
+                    sys.stdout.write('%s,%s\n' % (address, fqdn))
+                    sys.stdout.flush()
 
 
 def initializer():
@@ -81,6 +83,11 @@ if __name__ == '__main__':
                         action='store',
                         help='target specific nameserver (default: lookup of NS records for a domain)',
                         metavar='SERVER',
+                        default=None)
+    parser.add_argument('-f', '--filter',
+                        action='store',
+                        help='a list of IP addresses to filter against, only matching results are printed',
+                        metavar='FILE',
                         default=None)
     parser.add_argument('file',
                         nargs='?',
@@ -102,6 +109,14 @@ if __name__ == '__main__':
     # remove duplicates and sort
     domains = list(set(domains))
     domains = sorted(domains)
+
+    # compile filter (if supplied)
+    global addresses
+    if args.filter:
+        with open(args.filter) as fp:
+            addresses = [line.strip().lower() for line in fp if len(line)>0 and line[0] is not '#']
+    else:
+        addresses = None
 
     pool = Pool(processes=10, initializer=initializer)
     try:
