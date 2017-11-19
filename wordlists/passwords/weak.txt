@@ -10,6 +10,7 @@
 <<< %s(un='%s') = %u
 CHANGEME
 Changeme
+changeme
 FGTAbc11*xy+Qqz27
 LETMEIN
 LetMeIn
@@ -27,6 +28,7 @@ Password123$
 Password1234
 QWERTY
 Qwerty
+querty
 abc123
 access
 anonymous
@@ -39,6 +41,7 @@ letmein!
 master
 owaspbwa
 password
+password!
 password1
 password12
 password123
