@@ -21,6 +21,6 @@ else
   HASH=$3
   AUTH=$4
   DH=$5
-  echo "# ikeforce.py $IP -e -w groupnames.txt -t $ENC $HASH $AUTH $DH" -s 1 | tee ikeforce-groupnames-$IP.txt
+  echo "# ikeforce.py $IP -e -w groupnames.txt -t $ENC $HASH $AUTH $DH" -s 1 | tee ikeforce-$IP-groupnames-$ENC-$HASH-$AUTH-$DH.txt
   sudo ikeforce.py $IP -e -w /home/sion/Tools/Scripts/wordlists/passwords/groupnames.txt -t $ENC $HASH $AUTH $DH -s 1 | tee -a ikeforce-$IP-groupnames-$ENC-$HASH-$AUTH-$DH.txt
 fi

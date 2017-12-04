@@ -1,8 +1,16 @@
 #!/bin/bash
 
 VMRUN_BIN="/Applications/VMware Fusion.app/Contents/Library/vmrun"
+LIBRARY="$HOME/Documents/Virtual Machines.localized"
 
 case "$1" in
+  list)
+    find "$LIBRARY" -name "*.vmx" | while read line; do
+        filename=$(basename "$line")
+        echo "${filename%.*}"
+    done
+    exit 0
+    ;;
   status)
     "$VMRUN_BIN" list
     exit 0
@@ -10,35 +18,41 @@ case "$1" in
   *)
     if [ ! -f "/Users/sion/Documents/Virtual Machines.localized/$1.vmwarevm/$1.vmx" ]
       then
-        echo "That virtual machine does not exist!"
+        echo "Usage: possible options are:"
+        echo "vm <vm> { start | stop | suspend | pause | unpause | reset | ip } | status"
         exit 1
     fi
 esac
 
+VM="/Users/sion/Documents/Virtual Machines.localized/$1.vmwarevm/$1.vmx"
+
 case "$2" in
   start)
-    "$VMRUN_BIN" start "$1" nogui
+    "$VMRUN_BIN" start "$VM" nogui
     ;;
   stop)
-    "$VMRUN_BIN" stop "$1" nogui
+    "$VMRUN_BIN" stop "$VM" nogui
     ;;
   suspend)
-    "$VMRUN_BIN" suspend "$1" nogui
+    "$VMRUN_BIN" suspend "$VM" nogui
     ;;
   pause)
-    "$VMRUN_BIN" pause "$1" nogui
+    "$VMRUN_BIN" pause "$VM" nogui
     ;;
   unpause)
-    "$VMRUN_BIN" unpause "$1" nogui
+    "$VMRUN_BIN" unpause "$VM" nogui
     ;;
   reset)
-    "$VMRUN_BIN" reset "$1" nogui
+    "$VMRUN_BIN" reset "$VM" nogui
+    ;;
+  ip)
+    "$VMRUN_BIN" getGuestIPAddress "$VM" nogui
     ;;
   status)
     "$VMRUN_BIN" list
     ;;
   *)
     echo "Usage: possible options are:"
-    echo "vm <vm> {start | stop | suspend | pause | unpause | reset} | status"
+    echo "vm <vm> { start | stop | suspend | pause | unpause | reset | ip } | status"
     exit 1
 esac

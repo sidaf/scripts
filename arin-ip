@@ -35,7 +35,7 @@ def resolve(address):
         else:
             try:
                 if get_orgRef(response) == 'APNIC' or get_orgRef(response) == 'RIPE' or get_orgRef(response) == 'LACNIC' or get_orgRef(response) == 'AFRINIC':
-                    sys.stderr.write('%s => Registered with another regional internet registry, %s.' % (address, response.json['ns4:pft']['net']['orgRef']['@name']))
+                    sys.stderr.write('%s => Registered with another regional internet registry.\n' % (address))
                     break
 
                 try: # Reallocated IP space
@@ -72,9 +72,13 @@ def resolve(address):
                 sys.stdout.flush()
             except TypeError as te:
                 sys.stderr.write('%s => Error consuming data, %s\n' % (address, te))
+                import traceback
+                traceback.print_exc()
                 break
             except ValueError as ve:
                 sys.stderr.write('%s => Error consuming data, %s\n' % (address, ve))
+                import traceback
+                traceback.print_exc()
                 break
             except Exception as e:
                 import traceback

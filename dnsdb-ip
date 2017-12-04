@@ -35,12 +35,18 @@ def dnsdb_lookup(address):
     response = requests.get("%s/rdata/ip/%s" % (url, address), headers=headers)
     if "no results found for query" in response.text:
         return
+    if "Internal server error" in response.text:
+        sys.stderr.write('Server returned error'))
+        return
     data = StringIO(response.text)
     for line in data:
         jsonobj = json.loads(line)
-        host = str(jsonobj['rrname'])[:-1] # slice the trailing dot
-        sys.stdout.write('%s,%s\n' % (address, host))
-        sys.stdout.flush()
+        try:
+            host = str(jsonobj['rrname'])[:-1] # slice the trailing dot
+            sys.stdout.write('%s,%s\n' % (address, host))
+            sys.stdout.flush()
+        except KeyError as e:
+            sys.stderr.write('%s => KeyError: %s [%s]\n' % (address, e, line))
 
 
 def initializer():
