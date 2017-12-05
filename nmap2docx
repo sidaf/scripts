@@ -1,0 +1,73 @@
+#!/usr/bin/env ruby
+
+require 'nmap/xml'
+require 'sablon'
+
+USAGE = File.basename($PROGRAM_NAME) + " <xml> <docx> [hostnames.csv]"
+
+if ARGV.size < 2 or ARGV.size > 3
+  puts USAGE
+  exit 1
+end
+
+nmap = ARGV[0]
+docx = ARGV[1]
+file = ARGV[2]
+
+if not File.exists?(nmap)
+  puts "#{xml} does not exist!"
+  puts USAGE
+  exit 1
+end
+
+hosts = Array.new
+extra_hostnames = Hash.new
+
+if not file.nil?
+  if not File.exists?(file)
+    puts "#{file} does not exist!"
+    puts USAGE
+    exit 1
+  else
+    lines = IO.readlines(file)
+    lines.each do |line|
+      ip, hostname = line.chomp.split ','
+      if not extra_hostnames.key? ip
+        extra_hostnames[ip] = Array.new
+      end
+      extra_hostnames[ip] << hostname
+    end
+  end
+end
+
+Nmap::XML.new(nmap) do |xml|
+  xml.each_host do |host|
+
+    hostnames = Array.new
+    host.each_hostname do |hostname|
+      hostnames << hostname.name
+    end
+    if extra_hostnames.key? host.ip
+      hostnames = hostnames | extra_hostnames[host.ip]
+    end
+
+    services = Array.new
+    host.each_port do |port|
+      if port.state == :open
+        if port.service.ssl?
+          name = "ssl/#{port.service.name}"
+        else
+          name = port.service.name
+        end
+        services << { :port => port.number, :proto => port.protocol, :name => name }
+      end
+    end
+
+    hosts << { :ip => host.ip, :hostnames => hostnames, :services => services }
+  end
+end
+
+context = { :hosts => hosts }
+template = Sablon.template(File.expand_path("./nmap2docx.docx"))
+template.render_to_file File.expand_path(docx), context
+
