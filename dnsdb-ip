@@ -36,7 +36,7 @@ def dnsdb_lookup(address):
     if "no results found for query" in response.text:
         return
     if "Internal server error" in response.text:
-        sys.stderr.write('Server returned error'))
+        sys.stderr.write('Remote server returned an Internal Server Error!')
         return
     data = StringIO(response.text)
     for line in data:
