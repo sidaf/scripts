@@ -68,6 +68,6 @@ Nmap::XML.new(nmap) do |xml|
 end
 
 context = { :hosts => hosts }
-template = Sablon.template(File.expand_path("./nmap2docx.docx"))
+template = Sablon.template(File.expand_path(File.dirname(__FILE__) + "/nmap2docx.docx"))
 template.render_to_file File.expand_path(docx), context
 
