@@ -3,7 +3,7 @@
 require 'nmap/xml'
 require 'sablon'
 
-USAGE = File.basename($PROGRAM_NAME) + " <xml> <docx> [hostnames.csv]"
+USAGE = File.basename($PROGRAM_NAME) + " <xml> <output.docx> [hostnames.csv]"
 
 if ARGV.size < 2 or ARGV.size > 3
   puts USAGE
@@ -32,10 +32,10 @@ if not file.nil?
     lines = IO.readlines(file)
     lines.each do |line|
       ip, hostname = line.chomp.split ','
-      if not extra_hostnames.key? ip
+      if not extra_hostnames.key? ip.strip
         extra_hostnames[ip] = Array.new
       end
-      extra_hostnames[ip] << hostname
+      extra_hostnames[ip] << hostname.strip
     end
   end
 end
