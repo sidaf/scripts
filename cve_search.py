@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python2.7
 
 ###########
 # IMPORTS #
@@ -10,7 +10,7 @@ import argparse
 import json
 import re
 
-sys.path.append('/usr/share/vfeed/')
+sys.path.append('/usr/local/share/vfeed/')
 from config.constants import db
 from lib.core.methods import CveExploit
 from lib.core.methods import CveInfo

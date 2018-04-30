@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python2.7
 
 # gnxmerge.py - Glens Nmap XML merger
 # Merge multiple nmap XML files

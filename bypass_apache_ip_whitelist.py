@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python2.7
 
 '''
 This script is python 2 based version of the python 3 script located at
