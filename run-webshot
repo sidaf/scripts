@@ -1,11 +1,18 @@
 #!/bin/bash
 
-if [ -z $2 ]; 
-  then printf "\nSyntax: $0 <target|e.g. http[s]://address:port/> <vhost|e.g. www.google.co.uk>\n\n"
+if [ -z $1 ]; 
+  then printf "Syntax: $0 <target|e.g. http[s]://address:port/> [vhost|e.g. www.google.co.uk]\n"
 else
+  DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
   TARGET=$1; VHOST=${2:-};
-  if [[ -n $VHOST ]]; then
-    phantomjs --ignore-ssl-errors=yes --ssl-protocol=ANY "webshot.js" $TARGET $VHOST $FILE 1024px*768px
+  HOST=$(echo "$TARGET" | cut -d'/' -f3 | cut -d':' -f1)
+  PORT=$(echo "$TARGET" | cut -d'/' -f3 | cut -d':' -f2)
+  SCHEME=$(echo "$TARGET" | cut -d'/' -f1 | cut -d':' -f1)
+  if [[ -n "$VHOST" ]]; then
+    FILE="$HOST-$VHOST-$SCHEME-$PORT.png"
+    phantomjs --ignore-ssl-errors=yes --ssl-protocol=ANY "$DIR/webshot.js" $TARGET $VHOST $FILE 1024px*768px
   else
+    FILE="$HOST-$HOST-$SCHEME-$PORT.png"
+    phantomjs --ignore-ssl-errors=yes --ssl-protocol=ANY "$DIR/webshot.js" $TARGET $HOST $FILE 1024px*768px
   fi
 fi
