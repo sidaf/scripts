@@ -1,73 +1,113 @@
 #!/usr/bin/env ruby
 
+$stderr.sync = true
 require 'nmap/xml'
 require 'sablon'
+require 'optparse'
+require 'csv'
 
-USAGE = File.basename($PROGRAM_NAME) + " <xml> <output.docx> [hostnames.csv]"
+# default options
+output = ''
+vhosts= ''
+input  = Array.new
 
-if ARGV.size < 2 or ARGV.size > 3
-  puts USAGE
-  exit 1
+
+# parse arguments
+file = __FILE__
+ARGV.options do |opts|
+  opts.on("-o", "--output FILE", String)            { |val| output = val }
+  opts.on("-n", "--hostnames FILE", String)         { |val| vhosts = val }
+  opts.on("-i", "--input FILE1,FILE2,FILE3", Array) { |val| input = val }
+  opts.on_tail("-h", "--help")                        { puts opts; exit }
+  opts.parse!
 end
 
-nmap = ARGV[0]
-docx = ARGV[1]
-file = ARGV[2]
-
-if not File.exists?(nmap)
-  puts "#{xml} does not exist!"
-  puts USAGE
-  exit 1
+if output.nil? or output.empty? then
+  puts "Missing option: output"
+  puts ARGV.options
+  exit
 end
 
-hosts = Array.new
-extra_hostnames = Hash.new
+if input.empty? then
+  puts "Missing option: input"
+  puts ARGV.options
+  exit
+end
 
-if not file.nil?
+input.each do |file|
   if not File.exists?(file)
     puts "#{file} does not exist!"
-    puts USAGE
+    exit 1
+  end
+end
+
+hostnames = Hash.new
+
+unless vhosts.empty? then
+  if not File.exists?(vhosts)
+    puts "#{vhosts} does not exist!"
     exit 1
   else
-    lines = IO.readlines(file)
-    lines.each do |line|
-      ip, hostname = line.chomp.split ','
-      if not extra_hostnames.key? ip.strip
-        extra_hostnames[ip] = Array.new
-      end
-      extra_hostnames[ip] << hostname.strip
-    end
-  end
-end
-
-Nmap::XML.new(nmap) do |xml|
-  xml.each_host do |host|
-
-    hostnames = Array.new
-    host.each_hostname do |hostname|
-      hostnames << hostname.name
-    end
-    if extra_hostnames.key? host.ip
-      hostnames = hostnames | extra_hostnames[host.ip]
-    end
-
-    services = Array.new
-    host.each_port do |port|
-      if port.state == :open
-        if port.service.ssl?
-          name = "ssl/#{port.service.name}"
-        else
-          name = port.service.name
+    puts "[+] Reading #{vhosts} ..."
+    CSV.foreach(vhosts) do |row|
+      hostname = row[0].strip
+      ip = row[1].strip
+      unless hostname.empty?
+        if not hostnames.key? ip
+          hostnames[ip] = Array.new
         end
-        services << { :port => port.number, :proto => port.protocol, :name => name }
+        hostnames[ip] << hostname
       end
     end
-
-    hosts << { :ip => host.ip, :hostnames => hostnames, :services => services }
   end
 end
 
-context = { :hosts => hosts }
+hosts = Hash.new
+
+input.each do |nmap|
+  puts "[+] Processing #{nmap} ..."
+  Nmap::XML.new(nmap) do |xml|
+    xml.each_host do |host|
+
+      nhostnames = Array.new
+      host.each_hostname do |hostname|
+        if not hostnames.key? host.ip
+          hostnames[host.ip] = Array.new
+        end
+        hostnames[host.ip] << hostname.name.strip
+      end
+
+      host.each_port do |port|
+        if port.state == :open and not port.service.nil?
+          if port.service.ssl?
+            name = "ssl/#{port.service.name}"
+          else
+            name = port.service.name
+          end
+          unless name == 'tcpwrapped'
+            if not hosts.key? host.ip
+              hosts[host.ip] = Array.new
+            end
+            hosts[host.ip] << { :port => port.number, :proto => port.protocol, :name => name }
+          end
+        end
+      end
+
+    end
+  end
+end
+
+results = Array.new
+hosts.each do |ip, services|
+  names = Array.new
+  if hostnames.key? ip
+    names = hostnames[ip]
+  end
+  results << { :ip => ip, :hostnames => names.sort, :services => services.sort_by { |service| service[:port] } }
+end
+
+puts "[+] Generating #{output} ..."
+context = { :hosts => results }
 template = Sablon.template(File.expand_path(File.dirname(__FILE__) + "/nmap2docx.docx"))
-template.render_to_file File.expand_path(docx), context
+template.render_to_file File.expand_path(output), context
 
