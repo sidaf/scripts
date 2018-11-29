@@ -27,19 +27,29 @@ run_tcp() {
     fi
   fi
 
-  echo "# nmap -v -Pn -sS -sV --version-intensity=9 -O --script=default --traceroute -T4 -p T:$TCP --initial-rtt-timeout=200ms --min-rtt-timeout=50ms --max-rtt-timeout=1000ms --defeat-rst-ratelimit --min-hostgroup=254 --open --stats-every=15s -oA tcp -iL $FILE" | tee tcp.out
-  nmap -v -Pn -sS -sV --version-intensity 9 -O --script=default --traceroute -T4 -p T:$TCP --initial-rtt-timeout=200ms --min-rtt-timeout=50ms --max-rtt-timeout=1000ms --defeat-rst-ratelimit --min-hostgroup=254 --open --stats-every 15s -oA tcp -iL $FILE | tee -a tcp.out
+  echo "# nmap -v -Pn -sS -sV --version-intensity=9 -O --script=default --traceroute -T4 -p T:$TCP --defeat-rst-ratelimit --min-hostgroup=1024 --open --reason --stats-every=15s -oA tcp -iL $FILE" | tee tcp.out
+  nmap -v -Pn -sS -sV --version-intensity 9 -O --script=default --traceroute -T4 -p T:$TCP --defeat-rst-ratelimit --min-hostgroup=1024 --open --reason --stats-every 15s -oA tcp -iL $FILE | tee -a tcp.out
 }
 
 run_udp() {
   FILE=$1
+  PORTS=$2
 
-  echo "# nmap -v -Pn -sU -sV --version-intensity=2 -O --script=default --traceroute -T4 -p U:$UDP --initial-rtt-timeout=200ms --min-rtt-timeout=50ms --max-rtt-timeout=1000ms --defeat-rst-ratelimit --min-hostgroup=254 --open --stats-every=15s -oA udp -iL $FILE" | tee udp.out
-  nmap -v -Pn -sU -sV --version-intensity 2 -O --script=default --traceroute -T4 -p U:$UDP --initial-rtt-timeout=200ms --min-rtt-timeout=50ms --max-rtt-timeout=1000ms --defeat-rst-ratelimit --min-hostgroup=254 --open --stats-every 15s -oA udp -iL $FILE | tee -a udp.out
+  if [[ -n $PORTS ]]; then
+    if [[ -f $PORTS ]]; then
+      UDP=$(cat $PORTS | tr '\n' ',' | sed -e 's/,$//')
+    else
+      echo $PORTS does not exist!
+      return 1
+    fi
+  fi
+
+  echo "# nmap -v -Pn -sU -sV --version-intensity=2 -O --script=default --traceroute -T4 -p U:$UDP --defeat-rst-ratelimit --min-hostgroup=1024 --open --reason --stats-every=15s -oA udp -iL $FILE" | tee udp.out
+  nmap -v -Pn -sU -sV --version-intensity 2 -O --script=default --traceroute -T4 -p U:$UDP --defeat-rst-ratelimit --min-hostgroup=1024 --open --reason --stats-every 15s -oA udp -iL $FILE | tee -a udp.out
 }
 
 if [ -z $1 ];then
-  printf "\nSyntax: $0 <file of ips> <Option|-t (tcp) or -u (udp) or -a (tcp & udp)> <optional: file of tcp ports>\n\n"
+  printf "\nSyntax: $0 <file of ips> <Option|-t (tcp) or -u (udp)> <optional: file containing a list of ports>\n\n"
 else
   FILE=$1
   OPTION=$2
@@ -53,10 +63,7 @@ else
   if [ $OPTION == '-t' ];then
     run_tcp $FILE $PORTS
   elif [ $OPTION == '-u' ];then
-    run_udp $FILE
-  elif [ $OPTION == '-a' ];then
-    run_tcp $FILE $PORTS
-    run_udp $FILE
+    run_udp $FILE $PORTS
   else
 	  echo 'Dammit Bobby.'
   fi
