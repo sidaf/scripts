@@ -110,7 +110,8 @@ def crawl(candidate, visited_urls, target_attempt):
             # Print
             if any(response.status_code != int(code.strip()) for code in ignore_status_code.split(',')):
                 if print_status_code is None or any(response.status_code == int(code.strip()) for code in print_status_code.split(',')):
-                    sys.stdout.write('%s,%s,%s\n' % (method, response.status_code, vid))
+                    #sys.stdout.write('%s,%s,%s\n' % (method, response.status_code, vid))
+                    sys.stdout.write('%s (Status: %s)\n' % (vid, response.status_code))
                     sys.stdout.flush()
         except:
             #import traceback
@@ -295,36 +296,36 @@ if __name__ == '__main__':
                         help='only print responses with a matching status code (default: all)',
                         metavar='CODE',
                         default=None)
+    parser.add_argument('-m', '--method',
+                          action='store',
+                          help='HTTP method to use for requests (default: GET)',
+                          metavar='METHOD',
+                          default='GET')
+    parser.add_argument('--rate-limit',
+                          action='store',
+                          help='wait NUM seconds between each request (default: 0)',
+                          metavar='NUM',
+                          default=0)
+    parser.add_argument('--request-max-attempt',
+                          action='store',
+                          help='skip request after NUM failed connection attempts (default: 3)',
+                          metavar='NUM',
+                          default=3)
+    parser.add_argument('--target-max-attempt',
+                          action='store',
+                          help='stop crawl after NUM failed request max attempts (default: 2)',
+                          metavar='NUM',
+                          default=2)
     #('ignore_regex', None, False, 'skip resources that match regex'),
     #('allow_regex', None, False, 'crawl only resources that match regex'),
+    #('crawl_depth', '5', True, 'skip resources that are NUM directories deep, -1 for unlimited'),
+    #('crawl_limit', '-1', True, 'stop crawl after NUM resources have been retrieved, -1 for unlimited'),
     required = parser.add_argument_group('required arguments')
     required.add_argument('-t', '--target',
                           action='store',
                           help='target web server URL (http[s]://address:port)',
                           metavar='URL',
                           required=True)
-    required.add_argument('-m', '--method',
-                          action='store',
-                          help='HTTP method to use for requests (default: GET)',
-                          metavar='METHOD',
-                          default='GET')
-    required.add_argument('--rate-limit',
-                          action='store',
-                          help='wait NUM seconds between each request (default: 0)',
-                          metavar='NUM',
-                          default=0)
-    required.add_argument('--request-max-attempt',
-                          action='store',
-                          help='skip request after NUM failed connection attempts (default: 3)',
-                          metavar='NUM',
-                          default=3)
-    required.add_argument('--target-max-attempt',
-                          action='store',
-                          help='stop crawl after NUM failed request max attempts (default: 2)',
-                          metavar='NUM',
-                          default=2)
-    #('crawl_depth', '5', True, 'skip resources that are NUM directories deep, -1 for unlimited'),
-    #('crawl_limit', '-1', True, 'stop crawl after NUM resources have been retrieved, -1 for unlimited'),
     args = parser.parse_args()
 
     global target
