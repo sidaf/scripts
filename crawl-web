@@ -216,12 +216,12 @@ def extract_links(parent_url, response):
 
     sanitised = set()
     for href in unsanitised:
-        if href is None 
-                or href.strip() == ''
+        if href is None \
+                or href.strip() == '' \
                 or href.lower().startswith('mailto:') \
-                or href.lower().startswith('javascript:')
+                or href.lower().startswith('javascript:') \
                 or href.lower().startswith('#') \
-                or href.startswith('..')
+                or href.startswith('..') \
                 or href.startswith('/..'):
             continue
 
