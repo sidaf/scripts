@@ -206,11 +206,23 @@ def extract_links(parent_url, response):
             for script in doc.xpath("//script"):
                 unsanitised.add(script.get("src"))
 
+        # Only proceed if we the response contains a javascript script
+        if 'content-type' in response.headers and 'application/javascript' in response.headers['content-type'].lower():
+            for match in re.finditer(r'''([\/a-zA-Z0-9%._+-]+)''', response.text):
+                potential = match.group(0)
+                if '.' in potential and '/' in potential and '*' not in potential \
+                        and not potential.startswith('//') and potential.startswith('/'):
+                    unsanitised.add(potential)
+
     sanitised = set()
     for href in unsanitised:
-        if href is None or href.strip() == '' or href.lower().startswith('mailto:') \
-                or href.lower().startswith('javascript:') or href.lower().startswith('#') \
-                or href.startswith('..') or href.startswith('/..'):
+        if href is None 
+                or href.strip() == ''
+                or href.lower().startswith('mailto:') \
+                or href.lower().startswith('javascript:')
+                or href.lower().startswith('#') \
+                or href.startswith('..')
+                or href.startswith('/..'):
             continue
 
         if href.startswith('http://') or href.startswith('https://'):
@@ -265,12 +277,12 @@ if __name__ == '__main__':
                         default=None)
     parser.add_argument('-c', '--cache',
                         action='store',
-                        help='cache file that can store visited URLs between invocations',
+                        help='cache file to store visited URLs between invocations',
                         metavar='FILE',
                         default=None)
     parser.add_argument('--ignore-extensions',
                         action='store',
-                        help='file with extensions that should not be ignored and not requested (default: .exe,.zip,.tar,.bz2,.run,.asc,.gz,.bin,.iso,.dmg,.xz,.pdf,.docx,.doc,.pptx,.ppt)',
+                        help='files with extensions that should be not be requested (default: .exe,.zip,.tar,.bz2,.run,.asc,.gz,.bin,.iso,.dmg,.xz,.pdf,.docx,.doc,.pptx,.ppt)',
                         metavar='EXT',
                         default='.exe,.zip,.tar,.bz2,.run,.asc,.gz,.bin,.iso,.dmg,.xz,.pdf,.docx,.doc,.pptx,.ppt')
     parser.add_argument('--ignore-status-code',
@@ -378,4 +390,4 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         for p in processes:
             p.terminate()
-    
+

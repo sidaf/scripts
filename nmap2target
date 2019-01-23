@@ -36,16 +36,16 @@ def check_file(xml_file):
         exit(1)
 
 def normalize_service(service, tunnel):
-    if service.startswith('http-'):
+    if service.startswith('http-') or service.endswith('http') or service == 'alt-http':
         service = 'http'
-    if service.startswith('https-'):
+    if service.startswith('https'):
         service = 'https'
     if tunnel == 'ssl':
-        if service == 'http' or service == 'upnp' or service == 'socks5':
+        if service.startswith('http') or service.endswith('https') or service == 'upnp' or service == 'socks5' or service == 'alt-http':
             service = 'https'
     return service
 
-def print_targets(xml_files, protocol_regex, service_regex, tunnel_regex, product_regex, service_prefix):
+def print_targets(xml_files, protocol_regex, service_regex, tunnel_regex, product_regex, service_prefix, hostnames):
     targets = set()
     for xml_file in xml_files:
         check_file(xml_file)
@@ -84,17 +84,27 @@ def print_targets(xml_files, protocol_regex, service_regex, tunnel_regex, produc
                             if protocol_result and service_result and tunnel_result and product_result:
                                 if not service_prefix:
                                     targets.add("%s:%s" % (address, portid))
+                                    for pair in hostnames:
+                                        hip, hname = pair.split(',')
+                                        if hip == address:
+                                            targets.add("%s:%s" % (hname, portid))
                                 else:
                                     targets.add("%s://%s:%s" % (service, address, portid))
+                                    for pair in hostnames:
+                                        hip, hname = pair.split(',')
+                                        if hip == address:
+                                            targets.add("%s://%s:%s" % (service, hname, portid))
         except AttributeError as e:
             error("Error parsing file '%s', %s. Skipping!" % (xml, e))
             continue
-    if not service_prefix:
-        for target in sorted(targets, key=lambda item: socket.inet_aton(item.split(':', 1)[0])):
+    #if not service_prefix:
+    #    for target in sorted(targets, key=lambda item: socket.inet_aton(item.split(':', 1)[0])):
+    #        print(target)
+    #else:
+    #    for target in sorted(targets, key=lambda item: socket.inet_aton(urlparse(item).netloc.split(':', 1)[0])):
             print(target)
-    else:
-        for target in sorted(targets, key=lambda item: socket.inet_aton(urlparse(item).netloc.split(':', 1)[0])):
-            print(target)
+    for target in targets:
+        print(target)
 
 def print_services(xml_files):
     services = set()
@@ -163,6 +173,11 @@ if __name__ == '__main__':
     parser.add_argument('-l', '--list',
                         action='store_true',
                         help='list services found')
+    parser.add_argument('-m', '--hostnames',
+                        action='store',
+                        help='a comma seperated list of IP addresses and corresponding hostnames, include hostname in output if IP address match',
+                        metavar='FILE',
+                        default=None)
     args = parser.parse_args()
 
     for xml in args.files:
@@ -173,7 +188,14 @@ if __name__ == '__main__':
             error("File '%s' is not readable." % xml)
             exit(1)
 
+    if args.hostnames:
+        with open(args.hostnames) as fp:
+            hostnames = [line.strip() for line in fp if len(line.strip())>0 and line[0] is not '#']
+    else:
+        hostnames = list()
+
     if args.list:
         print_services(args.files)
     else:
-        print_targets(args.files, args.protocol, args.service, args.tunnel, args.name, args.prefix)
+        print_targets(args.files, args.protocol, args.service, args.tunnel, args.name, args.prefix, hostnames)
+

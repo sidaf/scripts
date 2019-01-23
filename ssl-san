@@ -28,7 +28,7 @@ def print_potential_host(address, name):
     regex_fqdn = '^\S*\.\S*$'
     regex_wildcard = '^\*\.'
     if re.match(regex_wildcard, name):
-        #sys.stderr.write('Wildcard entry found for \'%s\'=> \'%s\'.' % (address, name))
+        #sys.stderr.write('Wildcard entry found for \'%s\'=> \'%s\'.\n' % (address, name))
         return
     if not re.match(regex_ip, name) and re.match(regex_fqdn, name):
         sys.stdout.write('%s,%s\n' % (address, name))

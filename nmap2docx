@@ -50,8 +50,8 @@ unless vhosts.empty? then
   else
     puts "[+] Reading #{vhosts} ..."
     CSV.foreach(vhosts) do |row|
-      hostname = row[0].strip
-      ip = row[1].strip
+      hostname = row[1].strip
+      ip = row[2].strip
       unless hostname.empty?
         if not hostnames.key? ip
           hostnames[ip] = Array.new
