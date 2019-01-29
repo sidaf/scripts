@@ -85,8 +85,7 @@ def crawl(candidate, visited_urls, target_attempt):
                 ip_address = resolve.split(':')[1]
                 vid = "%s,%s://%s:%s%s" % (host, scheme, ip_address, port, resource)
             else:
-                #vid = ',%s' % (url)
-                vid = '%s' % (url)
+                vid = ',%s' % (url)
 
             # Check that we haven't performed this request before
             if vid in visited_urls:
@@ -111,8 +110,7 @@ def crawl(candidate, visited_urls, target_attempt):
             # Print
             if any(response.status_code != int(code.strip()) for code in ignore_status_code.split(',')):
                 if print_status_code is None or any(response.status_code == int(code.strip()) for code in print_status_code.split(',')):
-                    #sys.stdout.write('%s,%s,%s\n' % (method, response.status_code, vid))
-                    sys.stdout.write('%s (Status: %s)\n' % (vid, response.status_code))
+                    sys.stdout.write('%s,%s,%s,%s\n' % (method, response.status_code, response.content_length, vid))
                     sys.stdout.flush()
         except:
             #import traceback

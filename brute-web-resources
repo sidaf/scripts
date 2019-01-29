@@ -72,10 +72,10 @@ def brute(candidate):
 
                 if resolve is not None and host.lower() == resolve.split(':')[0].lower():
                     ip_address = resolve.split(':')[1]
-                    sys.stdout.write("%s,%s,%s,%s://%s:%s%s\n" % (method, response.status_code, host, scheme, ip_address, port, resource))
+                    sys.stdout.write("%s,%s,%s,%s,%s://%s:%s%s\n" % (method, response.status_code, content_length, host, scheme, ip_address, port, resource))
                     sys.stdout.flush()
                 else:
-                    sys.stdout.write('%s,%s,,%s\n' % (method, response.status_code, url))
+                    sys.stdout.write('%s,%s,%s,,%s\n' % (method, response.status_code, response.content_length, url))
                     sys.stdout.flush()
         # break out of the loop
         attempt = request_max_attempt
