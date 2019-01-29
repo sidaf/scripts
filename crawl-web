@@ -85,7 +85,8 @@ def crawl(candidate, visited_urls, target_attempt):
                 ip_address = resolve.split(':')[1]
                 vid = "%s,%s://%s:%s%s" % (host, scheme, ip_address, port, resource)
             else:
-                vid = ',%s' % (url)
+                #vid = ',%s' % (url)
+                vid = '%s' % (url)
 
             # Check that we haven't performed this request before
             if vid in visited_urls:

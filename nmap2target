@@ -38,10 +38,10 @@ def check_file(xml_file):
 def normalize_service(service, tunnel):
     if service.startswith('http-') or service.endswith('http') or service == 'alt-http':
         service = 'http'
-    if service.startswith('https'):
+    if service.startswith('https') or service.endswith('https'):
         service = 'https'
     if tunnel == 'ssl':
-        if service.startswith('http') or service.endswith('https') or service == 'upnp' or service == 'socks5' or service == 'alt-http':
+        if service.startswith('http') or service == 'upnp' or service == 'socks5' or service == 'alt-http':
             service = 'https'
     return service
 
