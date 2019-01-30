@@ -185,7 +185,7 @@ def detect_page_not_found(method, url, resolve=None, quiet=False):
 
     # Process the status code returned by the web server
     if 200 <= response.status_code <= 299:
-        with open(os.path.join(os.path.realpath(__file__), '../wordlists/404_signatures.txt'), 'r') as fh:
+        with open(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../wordlists/404_signatures.txt'), 'r') as fh:
             for sig in fh:
                 sig = sig.rstrip()
                 if sig in response.text:
