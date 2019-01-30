@@ -25,6 +25,7 @@ global ecode
 global emesg
 global request_max_attempt
 global target_max_attempt
+global print_status_code
 
 ##########################
 # PROCESS HELPER OBJECT #
@@ -34,6 +35,10 @@ class Counter(object):
     def __init__(self, initval=0):
         self.val = Value('i', initval)
         self.lock = Lock()
+
+    def reset(self):
+        with self.lock:
+            self.val.value = 0
 
     def increment(self):
         with self.lock:
@@ -53,32 +58,41 @@ def brute(candidate):
     attempt = 0
     while attempt < request_max_attempt and target_attempt.value() < target_max_attempt:
         try:
+            # Explode candidate into usable components
+            url, scheme, host, _, port, resource, _ = curl.explode_target(candidate, None)
+            if resolve is not None and host.lower() == resolve.split(':')[0].lower():
+                ip_address = resolve.split(':')[1]
+                url = "%s://%s:%s%s" % (scheme, ip_address, port, resource)
+
+            # Make the request
             response = curl.request(method=method, url=candidate, resolve=resolve)
         except:
             #import traceback
             #traceback.print_exc()
             attempt += 1
             if attempt == request_max_attempt:
-                sys.stderr.write("%s => Maximum error count reached for candidate, skipping.\n" % (candidate))
+                sys.stderr.write('%s,ERR,-,%s,%s\n' % (method, host, url))
                 target_attempt.increment()
                 if target_attempt.value() >= target_max_attempt:
                     sys.stderr.write("%s => Maximum error count reached for target, skipping.\n" % (target))
-            continue
+                # Break out of the loop as we have reached the maximum number of attempts for this candidate
+                break
+            else:
+                # Try again...
+                continue
         else:
+            # Request was successful, reset target max attempt counter
+            target_attempt.reset()
+
+            # Process the response received for the candidate
             if not ((response.status_code == 200 and emesg is not None and emesg in response.text) \
                     or response.status_code == ecode or response.status_code == 404):
-                # Explode target into usable components
-                url, scheme, host, _, port, resource, _ = curl.explode_target(candidate, None)
+                if print_status_code is None or any(response.status_code == int(code.strip()) for code in print_status_code.split(',')):
+                    sys.stdout.write('%s,%s,%s,%s,%s\n' % (method, response.status_code, response.content_length, host, url))
+                    sys.stdout.flush()
 
-                if resolve is not None and host.lower() == resolve.split(':')[0].lower():
-                    ip_address = resolve.split(':')[1]
-                    sys.stdout.write("%s,%s,%s,%s,%s://%s:%s%s\n" % (method, response.status_code, content_length, host, scheme, ip_address, port, resource))
-                    sys.stdout.flush()
-                else:
-                    sys.stdout.write('%s,%s,%s,,%s\n' % (method, response.status_code, response.content_length, url))
-                    sys.stdout.flush()
-        # break out of the loop
-        attempt = request_max_attempt
+            # Break out of the loop as attempt was successful
+            break
 
 def initializer(counter):
     global target_attempt
@@ -111,32 +125,37 @@ if __name__ == '__main__':
                         help='text to match as a page not found identifier (default: autodetect)',
                         metavar='TEXT',
                         default=None)
+    parser.add_argument('-p', '--print-status_code',
+                        action='store',
+                        help='only print responses with a matching status code (default: all)',
+                        metavar='CODE',
+                        default=None)
+    parser.add_argument('--request-max-attempt',
+                          action='store',
+                          help='skip request after NUM failed connection attempts (default: 3)',
+                          metavar='NUM',
+                          default=3)
+    parser.add_argument('--target-max-attempt',
+                          action='store',
+                          help='stop crawl after NUM continuous failed request max attempts (default: 5)',
+                          metavar='NUM',
+                          default=5)
+    parser.add_argument('-w', '--wordlist',
+                          action='store',
+                          help='a list of resources to use for brute force attack (default: %s/wordlists/web_resources.txt)' % os.path.dirname(os.path.realpath(__file__)),
+                          metavar='FILE',
+                          default="%s/wordlists/web_resources.txt" % os.path.dirname(os.path.realpath(__file__)))
+    parser.add_argument('-m', '--method',
+                          action='store',
+                          help='HTTP method to use for requests (default: GET)',
+                          metavar='METHOD',
+                          default='GET')
     required = parser.add_argument_group('required arguments')
     required.add_argument('-t', '--target',
                           action='store',
                           help='target web server URL (http[s]://address:port)',
                           metavar='URL',
                           required=True)
-    required.add_argument('-m', '--method',
-                          action='store',
-                          help='HTTP method to use for requests (default: GET)',
-                          metavar='METHOD',
-                          default='GET')
-    required.add_argument('--request-max-attempt',
-                          action='store',
-                          help='skip request after NUM failed connection attempts (default: 3)',
-                          metavar='NUM',
-                          default=3)
-    required.add_argument('--target-max-attempt',
-                          action='store',
-                          help='stop crawl after NUM failed request max attempts (default: 2)',
-                          metavar='NUM',
-                          default=2)
-    required.add_argument('-w', '--wordlist',
-                          action='store',
-                          help='a list of resources to use for brute force attack (default: %s/wordlists/web_resources.txt)' % os.path.dirname(os.path.realpath(__file__)),
-                          metavar='FILE',
-                          default="%s/wordlists/web_resources.txt" % os.path.dirname(os.path.realpath(__file__)))
     args = parser.parse_args()
 
     global target

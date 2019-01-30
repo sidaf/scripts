@@ -207,12 +207,12 @@ def extract_links(parent_url, response):
                 unsanitised.add(script.get("src"))
 
         # Only proceed if we the response contains a javascript script
-        if 'content-type' in response.headers and 'application/javascript' in response.headers['content-type'].lower():
-            for match in re.finditer(r'''([\/a-zA-Z0-9%._+-]+)''', response.text):
-                potential = match.group(0)
-                if '.' in potential and '/' in potential and '*' not in potential \
-                        and not potential.startswith('//') and potential.startswith('/'):
-                    unsanitised.add(potential)
+        #if 'content-type' in response.headers and 'application/javascript' in response.headers['content-type'].lower():
+        #    for match in re.finditer(r'''([\/a-zA-Z0-9%._+-]+)''', response.text):
+        #        potential = match.group(0)
+        #        if '.' in potential and '/' in potential and '*' not in potential \
+        #                and not potential.startswith('//') and potential.startswith('/'):
+        #            unsanitised.add(potential)
 
     sanitised = set()
     for href in unsanitised:

@@ -56,7 +56,7 @@ def request(url=None, host=None, port='', scheme='http', path='/', params='', qu
     fp.setopt(pycurl.SSL_VERIFYPEER, 0)
     fp.setopt(pycurl.SSL_VERIFYHOST, 0)
     fp.setopt(pycurl.HEADER, 1)
-    fp.setopt(pycurl.USERAGENT, 'Mozilla/5.0')
+    fp.setopt(pycurl.USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; WOW64; rv:54.0) Gecko/20100101 Firefox/54.0')
     fp.setopt(pycurl.NOSIGNAL, 1)
     fp.setopt(pycurl.FOLLOWLOCATION, int(follow))
     fp.setopt(pycurl.MAXREDIRS, int(max_follow))
@@ -165,7 +165,7 @@ def request(url=None, host=None, port='', scheme='http', path='/', params='', qu
     return response
 
 
-def detect_page_not_found(method, url, resolve=None):
+def detect_page_not_found(method, url, resolve=None, quiet=False):
     # Set good defaults
     ecode, emesg = 404, None
 
@@ -179,7 +179,8 @@ def detect_page_not_found(method, url, resolve=None):
     except:
         #import traceback
         #traceback.print_exc()
-        sys.stderr.write("Error requesting '%s', detection of page not found identifier could not be performed.\n" % test_url)
+        if not quiet:
+            sys.stderr.write("Error requesting '%s', detection of page not found identifier could not be performed.\n" % test_url)
         return ecode, emesg
 
     # Process the status code returned by the web server
@@ -191,17 +192,21 @@ def detect_page_not_found(method, url, resolve=None):
                     emesg = sig
                     break
         if emesg is None:
-            sys.stderr.write("Using first 256 bytes of the response as a page not found identifier.\n")
+            if not quiet:
+                sys.stderr.write("Using first 256 bytes of the response as a page not found identifier.\n")
             emesg = response.text[0:256]
         else:
-            sys.stderr.write("Using '%s' text as a page not found identifier.\n" % emesg)
+            if not quiet:
+                sys.stderr.write("Using '%s' text as a page not found identifier.\n" % emesg)
     elif response.status_code == 301 or response.status_code == 302 \
             or response.status_code == 303 or response.status_code == 307:
         ecode = response.status_code
-        sys.stderr.write("Using status code '%s' as a page not found identifier.\n" % str(ecode))
+        if not quiet:
+            sys.stderr.write("Using status code '%s' as a page not found identifier.\n" % str(ecode))
     else:
         ecode = response.status_code
-        sys.stderr.write("Using status code '%s' as a page not found identifier.\n" % str(ecode))
+        if not quiet:
+            sys.stderr.write("Using status code '%s' as a page not found identifier.\n" % str(ecode))
     return ecode, emesg
 
 
