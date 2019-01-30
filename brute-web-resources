@@ -183,6 +183,9 @@ if __name__ == '__main__':
     global target_max_attempt
     target_max_attempt = args.target_max_attempt
 
+    global print_status_code
+    print_status_code = args.print_status_code
+
     with open(args.wordlist) as fp:
         resources = [line.strip() for line in fp if len(line.strip())>0 and line[0] is not '#']
 
@@ -193,7 +196,7 @@ if __name__ == '__main__':
         urls.append(urljoin(url, resource, allow_fragments=False))
 
     if ecode is None and emesg is None:
-        ecode, emesg = curl.detect_page_not_found(method=method, url=url, resolve=resolve)
+        ecode, emesg = curl.detect_page_not_found(method=method, url=url, resolve=resolve, quiet=True)
 
     pool = Pool(processes=10, initializer=initializer, initargs=(Counter(0),))
     try:
