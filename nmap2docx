@@ -13,7 +13,6 @@ input  = Array.new
 
 
 # parse arguments
-file = __FILE__
 ARGV.options do |opts|
   opts.on("-o", "--output FILE", String)            { |val| output = val }
   opts.on("-n", "--hostnames FILE", String)         { |val| vhosts = val }
@@ -69,12 +68,12 @@ input.each do |nmap|
   Nmap::XML.new(nmap) do |xml|
     xml.each_host do |host|
 
-      nhostnames = Array.new
+      hostnames = Hash.new
       host.each_hostname do |hostname|
         if not hostnames.key? host.ip
           hostnames[host.ip] = Array.new
         end
-        hostnames[host.ip] << hostname.name.strip
+        hostnames[host.ip] << hostname.name.strip.downcase
       end
 
       host.each_port do |port|
@@ -102,6 +101,7 @@ hosts.each do |ip, services|
   names = Array.new
   if hostnames.key? ip
     names = hostnames[ip]
+    names.uniq!
   end
   results << { :ip => ip, :hostnames => names.sort, :services => services.sort_by { |service| service[:port] } }
 end
