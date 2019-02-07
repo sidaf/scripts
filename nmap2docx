@@ -1,36 +1,42 @@
 #!/usr/bin/env ruby
+#/ Usage: nmap2docx [options] ...
+#/
+#/ This script takes an nmap generated xml file and generates a Word document 
+#/ that contains a table with four columns: IP address, hostname, port, and 
+#/ service. Only hosts with accessible ports are included. A CSV file 
+#/ containing additional IP address and hostname pairs can also be specified.
 
 $stderr.sync = true
+
 require 'nmap/xml'
 require 'sablon'
 require 'optparse'
 require 'csv'
 
 # default options
-output = ''
-vhosts= ''
+output = nil
+vhosts= nil
 input  = Array.new
 
 
 # parse arguments
+file = __FILE__
 ARGV.options do |opts|
   opts.on("-o", "--output FILE", String)            { |val| output = val }
   opts.on("-n", "--hostnames FILE", String)         { |val| vhosts = val }
   opts.on("-i", "--input FILE1,FILE2,FILE3", Array) { |val| input = val }
-  opts.on_tail("-h", "--help")                        { puts opts; exit }
+  opts.on_tail("-h", "--help")                      { exec "grep ^#/<'#{file}'|cut -c4-" }
   opts.parse!
 end
 
-if output.nil? or output.empty? then
-  puts "Missing option: output"
+if output.nil? then
   puts ARGV.options
-  exit
+  exit 1
 end
 
 if input.empty? then
-  puts "Missing option: input"
   puts ARGV.options
-  exit
+  exit 1
 end
 
 input.each do |file|
@@ -42,7 +48,7 @@ end
 
 hostnames = Hash.new
 
-unless vhosts.empty? then
+unless vhosts.nil? then
   if not File.exists?(vhosts)
     puts "#{vhosts} does not exist!"
     exit 1
@@ -70,7 +76,7 @@ input.each do |nmap|
 
       hostnames = Hash.new
       host.each_hostname do |hostname|
-        if not hostnames.key? host.ip
+        unless hostnames.key? host.ip
           hostnames[host.ip] = Array.new
         end
         hostnames[host.ip] << hostname.name.strip.downcase
@@ -83,8 +89,8 @@ input.each do |nmap|
           else
             name = port.service.name
           end
-          unless name == 'tcpwrapped'
-            if not hosts.key? host.ip
+          unless name.include? 'tcpwrapped'
+            unless hosts.key? host.ip
               hosts[host.ip] = Array.new
             end
             hosts[host.ip] << { :port => port.number, :proto => port.protocol, :name => name }
@@ -101,9 +107,10 @@ hosts.each do |ip, services|
   names = Array.new
   if hostnames.key? ip
     names = hostnames[ip]
+    names.sort!
     names.uniq!
   end
-  results << { :ip => ip, :hostnames => names.sort, :services => services.sort_by { |service| service[:port] } }
+  results << { :ip => ip, :hostnames => names, :services => services.sort_by { |service| service[:port] } }
 end
 
 puts "[+] Generating #{output} ..."
