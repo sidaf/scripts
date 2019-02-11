@@ -2,3 +2,4 @@
 .vscode
 *.pyc
 tbc-*
+.DS_Store
