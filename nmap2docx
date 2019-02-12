@@ -12,14 +12,16 @@ require 'nmap/xml'
 require 'sablon'
 require 'optparse'
 require 'csv'
+require "set"
 
-# default options
+# argument default values 
+
 output = nil
 vhosts= nil
 input  = Array.new
 
-
 # parse arguments
+
 file = __FILE__
 ARGV.options do |opts|
   opts.on("-o", "--output FILE", String)            { |val| output = val }
@@ -28,6 +30,8 @@ ARGV.options do |opts|
   opts.on_tail("-h", "--help")                      { exec "grep ^#/<'#{file}'|cut -c4-" }
   opts.parse!
 end
+
+# check arguments
 
 if output.nil? then
   puts ARGV.options
@@ -46,38 +50,41 @@ input.each do |file|
   end
 end
 
-hostnames = Hash.new
+if not vhosts.nil? and not File.exists?(vhosts)
+  puts "#{vhosts} does not exist!"
+  exit 1
+end
 
-unless vhosts.nil? then
-  if not File.exists?(vhosts)
-    puts "#{vhosts} does not exist!"
-    exit 1
-  else
-    puts "[+] Reading #{vhosts} ..."
-    CSV.foreach(vhosts) do |row|
-      ip = row[0].strip
-      hostname = row[1].strip
-      unless hostname.empty?
-        if not hostnames.key? ip
-          hostnames[ip] = Array.new
-        end
-        hostnames[ip] << hostname
-      end
+# variables
+
+hosts = Hash.new
+hostnames = Hash.new
+results = Array.new
+
+# process hostnames csv file
+
+puts "[+] Processing #{vhosts}"
+CSV.foreach(vhosts) do |row|
+  ip = row[0].strip
+  hostname = row[1].strip.downcase
+  unless hostname.empty?
+    unless hostnames.key? ip
+      hostnames[ip] = SortedSet.new
     end
+    hostnames[ip] << hostname
   end
 end
 
-hosts = Hash.new
+# process nmap xml files
 
 input.each do |nmap|
-  puts "[+] Processing #{nmap} ..."
+  puts "[+] Processing #{nmap}"
   Nmap::XML.new(nmap) do |xml|
     xml.each_host do |host|
 
-      hostnames = Hash.new
       host.each_hostname do |hostname|
         unless hostnames.key? host.ip
-          hostnames[host.ip] = Array.new
+          hostnames[host.ip] = SortedSet.new
         end
         hostnames[host.ip] << hostname.name.strip.downcase
       end
@@ -102,16 +109,18 @@ input.each do |nmap|
   end
 end
 
-results = Array.new
+# build data array ready for import
+
 hosts.each do |ip, services|
-  names = Array.new
   if hostnames.key? ip
-    names = hostnames[ip]
-    names.sort!
-    names.uniq!
+    names = hostnames[ip].to_a
+  else
+    names = Array.new
   end
   results << { :ip => ip, :hostnames => names, :services => services.sort_by { |service| service[:port] } }
 end
+
+# import data into word document template
 
 puts "[+] Generating #{output} ..."
 context = { :hosts => results }
