@@ -1,0 +1,94 @@
+#!/usr/bin/env ruby
+#/ Usage: web_brute [options] ...
+#/
+#/ This script ...
+
+$stderr.sync = true
+
+require 'typhoeus'
+require 'digest'
+
+# 1) Test directory list
+# 2) Test file list with no extensions
+# 3) Test file list with custom extensions (asp, aspx, htm, html, jsp, php)
+# 4) Test file list with variant extensions (bac, BAC, backup, BACKUP, bak, BAK, bk, conf, cs, csproj, gz, inc, INC, java, log, lst, old, OLD, orig, ORIG, sav, save, tar, temp, tmp, TMP, vb, vbproj, zip, $$$, -OLD, -old, 0, 1, ~1, ~bk)
+# 5) Test file list with observed extensions (if different from custom/variant)
+# 6) Test observed files with custom extensions
+# 7) Test observed files with variant extensions
+# 8) Test observed files with observed extensions
+
+# Ignore discovered files with specific extensions (bz2, class, com, doc, docx, exe, gif, gz, jar, jpeg, jpg, mp3, mpeg, mpg, pdf, pif, png, ram, rar, scr, snp, swf, tgz, tif, wav, xls, xlsx, xml, zip)
+
+# Options:
+# A) Extract links
+# B) Files only, directories only, both files and directories
+# C) Recurse sub-directories (to depth: X)
+
+# Input: List of URLs
+
+# Group URLs by IP + hostname, so that enuemration does not happen twice
+# Split each batch of tests into tasks, and add to a queue
+# Tasks can then be pushed to top or bottom of queue as appropiate
+
+METHOD = 'GET'
+TARGET = "http://172.22.10.117:8080"
+HOST = nil
+WORDLIST = "/Users/sion/Desktop/combined.txt"
+USER_AGENTS = File.readlines(File.expand_path(File.dirname(__FILE__) + "/wordlists/user_agents.txt")).each {|line| line.chomp!}
+MAX_CONCURRENCY = 200
+STATUS_CODES = [200, 401]
+IGNORE_STATUS_CODES = [500]
+IGNORE_CONTENT_LENGTH = []
+
+
+words = IO.readlines(WORDLIST).map do |word|
+    word = word.strip                       # remove newline and whitespace characters
+    word = word[1..-1] if word[0,1] == '/'  # remove leading slash if it exists
+    #line += '/' if line[-1,1] != '/'        # add trailing slash if it doesn't exist
+    word
+end
+
+Typhoeus::Config.user_agent = USER_AGENTS.sample
+hydra = Typhoeus::Hydra.new(max_concurrency: MAX_CONCURRENCY)
+
+uri = URI(TARGET)
+vhost = HOST || uri.host
+resolve = Ethon::Curl.slist_append(nil, "#{vhost}:#{uri.port}:#{uri.host}")
+
+words.each do |word|
+    url = "#{TARGET}/#{word}"
+
+    request = Typhoeus::Request.new(
+        url,
+        resolve: resolve,
+        method: METHOD,
+        followlocation: false,
+        connecttimeout: 5,
+        timeout: 10,
+        ssl_verifyhost: 0,
+        ssl_verifypeer: false
+    )
+
+    request.on_complete do |response|
+        if response.timed_out?
+            STDERR.puts "#{url},TMO,#{METHOD},0"
+        elsif response.code.zero?
+            # Could not get an http response, something's wrong.
+            STDERR.puts "#{url},ERR,#{METHOD},0"
+        else
+            content_length = response.headers['content-length'].nil? ? response.body.size : response.headers['content-length']
+
+            next unless STATUS_CODES.empty? or STATUS_CODES.include? response.code
+            next if IGNORE_CONTENT_LENGTH.include? content_length
+            next if IGNORE_STATUS_CODES.include? response.code
+
+            hash = METHOD == 'GET' ? Digest::MD5.hexdigest(response.body) : String.new
+
+            puts "#{TARGET},#{METHOD},#{response.code},#{content_length},#{hash},#{vhost}"
+        end
+    end
+
+    hydra.queue request
+end
+
+hydra.run

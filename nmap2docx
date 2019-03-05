@@ -17,8 +17,8 @@ require "set"
 # argument default values 
 
 output = nil
-vhosts= nil
-input  = Array.new
+vhosts = nil
+input = Array.new
 
 # parse arguments
 

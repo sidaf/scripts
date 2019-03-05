@@ -1,0 +1,60 @@
+#!/usr/bin/env ruby
+#/ Usage: web_diff [options] ...
+#/
+#/ This script ...
+
+$stderr.sync = true
+
+require 'typhoeus'
+require 'digest'
+
+TARGET = "http://172.22.10.117:8080"
+HOSTS = ['www.test.com', 'www.example.com', 'www.blah.com']
+USER_AGENTS = File.readlines(File.expand_path(File.dirname(__FILE__) + "/wordlists/user_agents.txt")).each {|line| line.chomp!}
+METHOD = 'GET'
+MAX_CONCURRENCY = 200
+IGNORE_STATUS_CODES = []
+IGNORE_CONTENT_LENGTH = []
+
+Typhoeus::Config.user_agent = USER_AGENTS.sample
+hydra = Typhoeus::Hydra.new(max_concurrency: MAX_CONCURRENCY)
+
+HOSTS.each do |vhost|
+    uri = URI(TARGET)
+    resolve = Ethon::Curl.slist_append(nil, "#{vhost}:#{uri.port}:#{uri.host}")
+
+    request = Typhoeus::Request.new(
+        TARGET,
+        resolve: resolve,
+        method: METHOD,
+        followlocation: false,
+        connecttimeout: 5,
+        timeout: 10,
+        ssl_verifyhost: 0,
+        ssl_verifypeer: false
+    )
+
+    request.on_complete do |response|
+        if response.timed_out?
+            STDERR.puts "#{TARGET},TMO,#{METHOD},0,,#{vhost}"
+        elsif response.code.zero?
+            # Could not get an http response, something's wrong.
+            STDERR.puts "#{TARGET},ERR,#{METHOD},0,,#{vhost}"
+        else
+            content_length = response.headers['content-length'].nil? ? response.body.size : response.headers['content-length']
+
+            next if IGNORE_CONTENT_LENGTH.include? content_length
+            next if IGNORE_STATUS_CODES.include? response.code
+
+            headers = response.headers.dup.tap { |h| ['date', 'set-cookie'].map { |k| h.delete(k) } }
+            headers_hash = Digest::MD5.hexdigest(headers.to_s)
+            body_hash = METHOD == 'GET' ? Digest::MD5.hexdigest(response.body) : String.new
+
+            puts "#{TARGET},#{METHOD},#{response.code},#{content_length},#{body_hash},#{headers_hash},#{vhost}"
+        end
+    end
+
+    hydra.queue request
+end
+
+hydra.run
