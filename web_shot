@@ -8,6 +8,7 @@ $stderr.sync = true
 require 'optparse'
 require 'selenium-webdriver'
 
+# constant variables
 
 TIMEOUT = 15
 
@@ -19,21 +20,21 @@ input = nil
 
 file = __FILE__
 ARGV.options do |opts|
-  opts.on("-i", "--input FILE", String) { |val| input = val }
-  opts.on_tail("-h", "--help")          { exec "grep ^#/<'#{file}'|cut -c4-" }
-  opts.parse!
+    opts.on("-i", "--input FILE", String) { |val| input = val }
+    opts.on_tail("-h", "--help")          { exec "grep ^#/<'#{file}'|cut -c4-" }
+    opts.parse!
 end
 
 # check arguments
 
 if input.nil? then
-  puts ARGV.options
-  exit 1
+    puts ARGV.options
+    exit 1
 end
 
 if not File.exists?(input)
-  puts "#{input} does not exist!"
-  exit 1
+    puts "#{input} does not exist!"
+    exit 1
 end
 
 # read in a list of urls ro process
@@ -57,24 +58,24 @@ client.read_timeout = TIMEOUT + 5
 # process urls
 
 URLS.each do |url|
-  begin
-    STDERR.puts "Starting browser"
-    driver = Selenium::WebDriver.for :chrome, options: options, http_client: client
-    driver.manage.timeouts.page_load = TIMEOUT
-    STDERR.puts " - Navigating to #{url}"
-    driver.navigate.to url
-    #driver.manage.window.resize_to(1024, 768)
-    filename = url.gsub(/:\/\//, '_').gsub(/\//, '.').gsub(/:/, '_')
-    STDERR.puts " - Taking screenshot"
-    driver.save_screenshot "#{filename}.png"
-  rescue Selenium::WebDriver::Error::TimeOutError
-    STDERR.puts ' - Timeout'
-    next
-  ensure
     begin
-      STDERR.puts " - Closing browser"
-      driver.quit
+        STDERR.puts "Starting browser"
+        driver = Selenium::WebDriver.for :chrome, options: options, http_client: client
+        driver.manage.timeouts.page_load = TIMEOUT
+        STDERR.puts " - Navigating to #{url}"
+        driver.navigate.to url
+        #driver.manage.window.resize_to(1024, 768)
+        filename = url.gsub(/:\/\//, '_').gsub(/\//, '.').gsub(/:/, '_')
+        STDERR.puts " - Taking screenshot"
+        driver.save_screenshot "#{filename}.png"
+    rescue Selenium::WebDriver::Error::TimeOutError
+        STDERR.puts ' - Timeout'
+        next
+    ensure
+        begin
+        STDERR.puts " - Closing browser"
+        driver.quit
+        end
     end
-  end
 end
 

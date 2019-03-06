@@ -7,54 +7,119 @@ $stderr.sync = true
 
 require 'typhoeus'
 require 'digest'
+require 'optparse'
+require 'csv'
+require "set"
 
-TARGET = "http://172.22.10.117:8080"
-HOSTS = ['www.test.com', 'www.example.com', 'www.blah.com']
+# constant variables
+
 USER_AGENTS = File.readlines(File.expand_path(File.dirname(__FILE__) + "/wordlists/user_agents.txt")).each {|line| line.chomp!}
 METHOD = 'GET'
 MAX_CONCURRENCY = 200
 IGNORE_STATUS_CODES = []
 IGNORE_CONTENT_LENGTH = []
 
+# argument default values 
+
+vhosts = nil
+input = Array.new
+
+# parse arguments
+
+file = __FILE__
+ARGV.options do |opts|
+    opts.on("-o", "--output FILE", String)            { |val| output = val }
+    opts.on("-n", "--hostnames FILE", String)         { |val| vhosts = val }
+    opts.on("-i", "--input FILE1,FILE2,FILE3", Array) { |val| input = val }
+    opts.on_tail("-h", "--help")                      { exec "grep ^#/<'#{file}'|cut -c4-" }
+    opts.parse!
+end
+
+# check arguments
+
+if input.empty? then
+    puts ARGV.options
+    exit 1
+end
+  
+input.each do |file|
+    if not File.exists?(file)
+        puts "#{file} does not exist!"
+        exit 1
+    end
+end
+  
+if not vhosts.nil? and not File.exists?(vhosts)
+    puts "#{vhosts} does not exist!"
+    exit 1
+end
+
+# variables
+
+urls = Array.new
+hostnames = Hash.new
+
+# read in a list of urls to process
+
+input.each do |i|
+    urls += File.readlines(i).each {|l| l.chomp!}
+end
+
+# process hostnames csv file
+
+CSV.foreach(vhosts) do |row|
+  ip = row[0].strip
+  hostname = row[1].strip.downcase
+  unless hostname.empty?
+    unless hostnames.key? ip
+      hostnames[ip] = SortedSet.new
+    end
+    hostnames[ip] << hostname
+  end
+end
+
+
 Typhoeus::Config.user_agent = USER_AGENTS.sample
 hydra = Typhoeus::Hydra.new(max_concurrency: MAX_CONCURRENCY)
 
-HOSTS.each do |vhost|
-    uri = URI(TARGET)
-    resolve = Ethon::Curl.slist_append(nil, "#{vhost}:#{uri.port}:#{uri.host}")
+urls.each do |url|
+    uri = URI(url)
+    hostnames[uri.host].each do |vhost|
+        resolve = Ethon::Curl.slist_append(nil, "#{vhost}:#{uri.port}:#{uri.host}")
 
-    request = Typhoeus::Request.new(
-        TARGET,
-        resolve: resolve,
-        method: METHOD,
-        followlocation: false,
-        connecttimeout: 5,
-        timeout: 10,
-        ssl_verifyhost: 0,
-        ssl_verifypeer: false
-    )
+        request = Typhoeus::Request.new(
+            url,
+            resolve: resolve,
+            method: METHOD,
+            followlocation: false,
+            connecttimeout: 5,
+            timeout: 10,
+            ssl_verifyhost: 0,
+            ssl_verifypeer: false
+        )
 
-    request.on_complete do |response|
-        if response.timed_out?
-            STDERR.puts "#{TARGET},TMO,#{METHOD},0,,#{vhost}"
-        elsif response.code.zero?
-            # Could not get an http response, something's wrong.
-            STDERR.puts "#{TARGET},ERR,#{METHOD},0,,#{vhost}"
-        else
-            content_length = response.headers['content-length'].nil? ? response.body.size : response.headers['content-length']
+        request.on_complete do |response|
+            if response.timed_out?
+                STDERR.puts "#{url},TMO,#{METHOD},0,,#{vhost}"
+            elsif response.code.zero?
+                # Could not get an http response, something's wrong.
+                STDERR.puts "#{url},ERR,#{METHOD},0,,#{vhost}"
+            else
+                content_length = response.headers['content-length'].nil? ? response.body.size : response.headers['content-length']
 
-            next if IGNORE_CONTENT_LENGTH.include? content_length
-            next if IGNORE_STATUS_CODES.include? response.code
+                next if IGNORE_CONTENT_LENGTH.include? content_length
+                next if IGNORE_STATUS_CODES.include? response.code
 
-            headers = response.headers.dup.tap { |h| ['date', 'set-cookie'].map { |k| h.delete(k) } }
-            headers_hash = Digest::MD5.hexdigest(headers.to_s)
-            body_hash = METHOD == 'GET' ? Digest::MD5.hexdigest(response.body) : String.new
+                headers = response.headers.dup.tap { |h| ['date', 'set-cookie'].map { |k| h.delete(k) } }
+                headers_hash = Digest::MD5.hexdigest(headers.to_s)
+                body_hash = METHOD == 'GET' ? Digest::MD5.hexdigest(response.body) : String.new
 
-            puts "#{TARGET},#{METHOD},#{response.code},#{content_length},#{body_hash},#{headers_hash},#{vhost}"
+                puts "#{url},#{METHOD},#{response.code},#{content_length},#{body_hash},#{headers_hash},#{vhost}"
+            end
         end
-    end
 
-    hydra.queue request
+        hydra.queue request
+    end
 end
 
 hydra.run
