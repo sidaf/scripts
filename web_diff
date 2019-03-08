@@ -28,7 +28,6 @@ input = Array.new
 
 file = __FILE__
 ARGV.options do |opts|
-    opts.on("-o", "--output FILE", String)            { |val| output = val }
     opts.on("-n", "--hostnames FILE", String)         { |val| vhosts = val }
     opts.on("-i", "--input FILE1,FILE2,FILE3", Array) { |val| input = val }
     opts.on_tail("-h", "--help")                      { exec "grep ^#/<'#{file}'|cut -c4-" }
@@ -41,14 +40,14 @@ if input.empty? then
     puts ARGV.options
     exit 1
 end
-  
+
 input.each do |file|
     if not File.exists?(file)
         puts "#{file} does not exist!"
         exit 1
     end
 end
-  
+
 if not vhosts.nil? and not File.exists?(vhosts)
     puts "#{vhosts} does not exist!"
     exit 1
@@ -65,16 +64,26 @@ input.each do |i|
     urls += File.readlines(i).each {|l| l.chomp!}
 end
 
+urls.each do |url|
+    uri = URI(url)
+    unless hostnames.key? uri.host
+      hostnames[uri.host] = SortedSet.new
+    end
+    hostnames[uri.host] << uri.host
+end
+
 # process hostnames csv file
 
-CSV.foreach(vhosts) do |row|
-  ip = row[0].strip
-  hostname = row[1].strip.downcase
-  unless hostname.empty?
-    unless hostnames.key? ip
-      hostnames[ip] = SortedSet.new
+if not vhosts.nil?
+  CSV.foreach(vhosts) do |row|
+    ip = row[0].strip
+    hostname = row[1].strip.downcase
+    unless hostname.empty?
+      unless hostnames.key? ip
+        hostnames[ip] = SortedSet.new
+      end
+      hostnames[ip] << hostname
     end
-    hostnames[ip] << hostname
   end
 end
 
@@ -114,7 +123,7 @@ urls.each do |url|
                 headers_hash = Digest::MD5.hexdigest(headers.to_s)
                 body_hash = METHOD == 'GET' ? Digest::MD5.hexdigest(response.body) : String.new
 
-                puts "#{url},#{METHOD},#{response.code},#{content_length},#{body_hash},#{headers_hash},#{vhost}"
+                puts "#{url},#{vhost},#{METHOD},#{response.code},#{content_length},#{body_hash},#{headers_hash}"
             end
         end
 
