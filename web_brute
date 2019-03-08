@@ -12,12 +12,10 @@ require 'digest'
 # 2) Test file list with no extensions
 # 3) Test file list with custom extensions (asp, aspx, htm, html, jsp, php)
 # 4) Test file list with variant extensions (bac, BAC, backup, BACKUP, bak, BAK, bk, conf, cs, csproj, gz, inc, INC, java, log, lst, old, OLD, orig, ORIG, sav, save, tar, temp, tmp, TMP, vb, vbproj, zip, $$$, -OLD, -old, 0, 1, ~1, ~bk)
-# 5) Test file list with observed extensions (if different from custom/variant)
-# 6) Test observed files with custom extensions
-# 7) Test observed files with variant extensions
-# 8) Test observed files with observed extensions
-
-# Ignore discovered files with specific extensions (bz2, class, com, doc, docx, exe, gif, gz, jar, jpeg, jpg, mp3, mpeg, mpg, pdf, pif, png, ram, rar, scr, snp, swf, tgz, tif, wav, xls, xlsx, xml, zip)
+# 5) Test file list with observed extensions (if different from custom/variant), except for (bz2, class, com, doc, docx, exe, gif, gz, jar, jpeg, jpg, mp3, mpeg, mpg, pdf, pif, png, ram, rar, scr, snp, swf, tgz, tif, wav, xls, xlsx, xml, zip).
+# 6) Test observed files with custom extensions.
+# 7) Test observed files with variant extensions.
+# 8) Test observed files with observed extensions, except for (bz2, class, com, doc, docx, exe, gif, gz, jar, jpeg, jpg, mp3, mpeg, mpg, pdf, pif, png, ram, rar, scr, snp, swf, tgz, tif, wav, xls, xlsx, xml, zip).
 
 # Options:
 # A) Extract links
@@ -26,7 +24,7 @@ require 'digest'
 
 # Input: List of URLs
 
-# Group URLs by IP + hostname, so that enuemration does not happen twice
+# Group URLs by IP + hostname, so that enumeration does not happen twice
 # Split each batch of tests into tasks, and add to a queue
 # Tasks can then be pushed to top or bottom of queue as appropiate
 
