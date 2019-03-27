@@ -113,7 +113,7 @@ def print_csv(xml_files, hosts_up_only, open_ports_only, headers=False, delim=",
             host.get('info', "")))
     if headers:
         print("IP ADDRESS%sHOSTNAME%sPORT%sSTATE%sTTL%sPROTOCOL%sSERVICE%sTUNNEL%sPRODUCT%sVERSION%sINFO" % (
-            delim, delim, delim, delim, delim, delim, delim, delim, delim))
+            delim, delim, delim, delim, delim, delim, delim, delim, delim, delim))
     for line in sorted(lines, key=lambda item: socket.inet_aton(item.split(',', 1)[0])):
         print(line)
 
