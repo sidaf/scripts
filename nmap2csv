@@ -99,7 +99,7 @@ def print_csv(xml_files, hosts_up_only, open_ports_only, headers=False, delim=",
     hosts = extract(xml_files, hosts_up_only, open_ports_only)
     lines = set()
     for host in hosts:
-        lines.add("%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s" % (
+        lines.add("%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s" % (
             host.get('ip_address'), delim,
             host.get('host', ""), delim,
             host.get('port', ""), delim,
