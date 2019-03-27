@@ -53,6 +53,7 @@ def extract(xml_files, hosts_up_only=True, open_ports_only=True, ip_address_filt
                 if status == 'up':
                     for port in host.find('ports').findall('port'):
                         state = port.find('state').get('state', "")
+                        reason_ttl = port.find('state').get('reason_ttl', "")
                         if state == 'open':
                             service_xml = port.find('service')
                             service = service_xml.get('name', "") if service_xml is not None else None
@@ -71,6 +72,7 @@ def extract(xml_files, hosts_up_only=True, open_ports_only=True, ip_address_filt
                                               host=hostname,
                                               port=port.get('portid', ""),
                                               state=state,
+                                              reason_ttl=reason_ttl,
                                               protocol=port.get('protocol', ""),
                                               service=service,
                                               tunnel=tunnel,
@@ -97,11 +99,12 @@ def print_csv(xml_files, hosts_up_only, open_ports_only, headers=False, delim=",
     hosts = extract(xml_files, hosts_up_only, open_ports_only)
     lines = set()
     for host in hosts:
-        lines.add("%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s" % (
+        lines.add("%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s" % (
             host.get('ip_address'), delim,
             host.get('host', ""), delim,
             host.get('port', ""), delim,
             host.get('state', ""), delim,
+            host.get('reason_ttl', ""), delim,
             host.get('protocol', ""), delim,
             host.get('service', ""), delim,
             host.get('tunnel', ""), delim,
@@ -109,7 +112,7 @@ def print_csv(xml_files, hosts_up_only, open_ports_only, headers=False, delim=",
             host.get('version', ""), delim,
             host.get('info', "")))
     if headers:
-        print("IP ADDRESS%sHOSTNAME%sPORT%sSTATE%sPROTOCOL%sSERVICE%sTUNNEL%sPRODUCT%sVERSION%sINFO" % (
+        print("IP ADDRESS%sHOSTNAME%sPORT%sSTATE%sTTL%sPROTOCOL%sSERVICE%sTUNNEL%sPRODUCT%sVERSION%sINFO" % (
             delim, delim, delim, delim, delim, delim, delim, delim, delim))
     for line in sorted(lines, key=lambda item: socket.inet_aton(item.split(',', 1)[0])):
         print(line)
