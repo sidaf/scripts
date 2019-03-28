@@ -27,8 +27,8 @@ run_tcp() {
     fi
   fi
 
-  echo "# nmap -v -Pn -sS -sV --version-intensity=9 -O --script=default --traceroute -T4 -p T:$TCP --defeat-rst-ratelimit --min-hostgroup=1024 --open --reason --stats-every=15s -oA tcp -iL $FILE" | tee tcp.out
-  nmap -v -Pn -sS -sV --version-intensity 9 -O --script=default --traceroute -T4 -p T:$TCP --defeat-rst-ratelimit --min-hostgroup=1024 --open --reason --stats-every 15s -oA tcp -iL $FILE | tee -a tcp.out
+  echo "# nmap -v -Pn -sS -sV --version-intensity=9 -O --script=default --traceroute -T4 -p T:$TCP --min-hostgroup=1024 --open --reason --stats-every=10s -oA tcp -iL $FILE" | tee tcp.out
+  nmap -v -Pn -sS -sV --version-intensity 9 -O --script=default --traceroute -T4 -p T:$TCP --min-hostgroup=1024 --open --reason --stats-every 10s -oA tcp -iL $FILE | tee -a tcp.out
 }
 
 run_udp() {
@@ -44,8 +44,8 @@ run_udp() {
     fi
   fi
 
-  echo "# nmap -v -Pn -sU -sV --version-intensity=2 -O --script=default --traceroute -T4 -p U:$UDP --defeat-rst-ratelimit --min-hostgroup=1024 --open --reason --stats-every=15s -oA udp -iL $FILE" | tee udp.out
-  nmap -v -Pn -sU -sV --version-intensity 2 -O --script=default --traceroute -T4 -p U:$UDP --defeat-rst-ratelimit --min-hostgroup=1024 --open --reason --stats-every 15s -oA udp -iL $FILE | tee -a udp.out
+  echo "# nmap -v -Pn -sU -sV --version-intensity=2 -O --script=default --traceroute -T4 -p U:$UDP --min-hostgroup=1024 --open --reason --stats-every=10s -oA udp -iL $FILE" | tee udp.out
+  nmap -v -Pn -sU -sV --version-intensity 2 -O --script=default --traceroute -T4 -p U:$UDP --min-hostgroup=1024 --open --reason --stats-every 10s -oA udp -iL $FILE | tee -a udp.out
 }
 
 if [ -z $1 ];then
