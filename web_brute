@@ -18,7 +18,7 @@ FILE_LIST = File.expand_path(File.dirname(__FILE__) + "/wordlists/web/raft-large
 USER_AGENTS = File.readlines(File.expand_path(File.dirname(__FILE__) + "/wordlists/user_agents.txt")).each {|line| line.chomp!}
 MAX_CONCURRENCY = 100
 REPORT_STATUS_CODES = [200, 301, 307, 401]
-RECURSE_STATUS_CODES = [200]
+SAVE_STATUS_CODES = [200]
 IGNORE_STATUS_CODES = [404,500]
 IGNORE_CONTENT_LENGTH = []
 RECURSE = true
@@ -65,10 +65,10 @@ def brute(target, hostname, wordlist)
                 next if IGNORE_CONTENT_LENGTH.include? content_length
                 next if IGNORE_STATUS_CODES.include? response.code
 
-                results << url if RECURSE_STATUS_CODES.include? response.code 
+                results << url if SAVE_STATUS_CODES.include? response.code 
 
                 next unless REPORT_STATUS_CODES.empty? or REPORT_STATUS_CODES.include? response.code
-                
+
                 hash = METHOD == 'GET' ? Digest::MD5.hexdigest(response.body) : String.new
 
                 puts "#{url},#{METHOD},#{response.code},#{content_length},#{hash},#{vhost}"
