@@ -138,7 +138,7 @@ URLS.each do |target|
         end
 
         break if results.empty?
-        break unless RECURSE?
+        break unless RECURSE
         break if depth == RECURSE_DEPTH
 
         dir_results += results
