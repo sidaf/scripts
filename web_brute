@@ -45,18 +45,18 @@ def brute(target, hostname, wordlist)
             resolve: resolve,
             method: METHOD,
             followlocation: false,
-            connecttimeout: 10,
-            timeout: 15,
+            connecttimeout: 15,
+            timeout: 20,
             ssl_verifyhost: 0,
             ssl_verifypeer: false
         )
 
         request.on_complete do |response|
             if response.timed_out?
-                STDERR.puts "#{url},TMO,#{METHOD},0".red
+                STDERR.puts "#{url},TIMEOUT".red
             elsif response.code.zero?
                 # Could not get an http response, something's wrong.
-                STDERR.puts "#{url},ERR,#{METHOD},0".red
+                STDERR.puts "#{url},ERROR".red
             else
                 content_length = response.headers['content-length'].nil? ? response.body.size : response.headers['content-length']
 
