@@ -6,6 +6,7 @@
 $stderr.sync = true
 
 require 'optparse'
+require 'colorize'
 require 'typhoeus'
 require 'digest'
 
@@ -14,17 +15,20 @@ HOST = nil
 DIR_LIST = File.expand_path(File.dirname(__FILE__) + "/wordlists/web/raft-large-directories-lowercase.txt")
 FILE_LIST = File.expand_path(File.dirname(__FILE__) + "/wordlists/web/raft-large-files-lowercase-noext.txt")
 USER_AGENTS = File.readlines(File.expand_path(File.dirname(__FILE__) + "/wordlists/user_agents.txt")).each {|line| line.chomp!}
-MAX_CONCURRENCY = 200
+MAX_CONCURRENCY = 100
 STATUS_CODES = [200, 301, 307, 401]
 IGNORE_STATUS_CODES = [404,500]
 IGNORE_CONTENT_LENGTH = []
+RECURSE = true
 RECURSE_DEPTH = 5
-EXTENSIONS = ['htm', 'html', 'asp', 'aspx', 'jsp', 'php']
+CUSTOM_EXTENSIONS = ['htm', 'html', 'asp', 'aspx', 'jsp', 'php']
+VARIANT_EXTENSIONS = ['bac', 'BAC', 'backup', 'BACKUP', 'bak', 'BAK', 'bk', 'conf', 'cs', 'csproj', 'gz', 'inc', 'INC', 'java', 'log', 'lst', 'old', 'OLD', 'orig', 'ORIG', 'sav', 'save', 'tar', 'temp', 'tmp', 'TMP', 'vb', 'vbproj', 'zip', '$$$', '-OLD', '-old', '0', '1', '~1', '~bk']
+IGNORE_EXTENSIONS = ['7z', 'aac', 'bz2', 'class', 'com', 'dmg', 'doc', 'docx', 'exe', 'gif', 'gz', 'iso', 'jar', 'jpeg', 'jpg', 'mp3', 'mpeg', 'mpg', 'pdf', 'pif', 'png', 'ram', 'rar', 'scr', 'snp', 'swf', 'tgz', 'tif', 'tiff', 'wav', 'xls', 'xlsx', 'xml', 'zip']
 
 # Functions
 
 def brute(target, hostname, wordlist)
-    results = []
+    results = SortedSet.new
 
     Typhoeus::Config.user_agent = USER_AGENTS.sample
     hydra = Typhoeus::Hydra.new(max_concurrency: MAX_CONCURRENCY)
@@ -41,18 +45,18 @@ def brute(target, hostname, wordlist)
             resolve: resolve,
             method: METHOD,
             followlocation: false,
-            connecttimeout: 5,
-            timeout: 10,
+            connecttimeout: 10,
+            timeout: 15,
             ssl_verifyhost: 0,
             ssl_verifypeer: false
         )
 
         request.on_complete do |response|
             if response.timed_out?
-                STDERR.puts "#{url},TMO,#{METHOD},0"
+                STDERR.puts "#{url},TMO,#{METHOD},0".red
             elsif response.code.zero?
                 # Could not get an http response, something's wrong.
-                STDERR.puts "#{url},ERR,#{METHOD},0"
+                STDERR.puts "#{url},ERR,#{METHOD},0".red
             else
                 content_length = response.headers['content-length'].nil? ? response.body.size : response.headers['content-length']
 
@@ -94,32 +98,36 @@ end
 if target.nil? then
     puts ARGV.options
     exit 1
+else
+    target = target.chomp('/')
 end
 
 # 1) Test directory list
 
-dir_results = Set.new
+dir_results = SortedSet.new
 
-dirs = IO.readlines(DIR_LIST).map do |word|
+dirs = IO.readlines(DIR_LIST, :encoding => 'ISO-8859-1').map do |word|
     word = word.strip                       # remove newline and whitespace characters
     word = word[1..-1] if word[0,1] == '/'  # remove leading slash if it exists
-    line += '/' if line[-1,1] != '/'        # add trailing slash if it doesn't exist
-    word
+    word += '/' if word[-1,1] != '/'        # add trailing slash if it doesn't exist
 end
+dirs.uniq!
 
-urls = Set.new
+urls = SortedSet.new
 urls << target
 depth = 0
 
 loop do
-    results = Set.new
+    results = SortedSet.new
     depth += 1
 
     urls.each do |url|
-        results += brute(url, HOST, dirs)
+    #    STDERR.puts "[*] Testing directory list - #{url}".green
+    #    results += brute(url, HOST, dirs)
     end
 
     break if results.empty?
+    break unless RECURSE?
     break if depth == RECURSE_DEPTH
 
     dir_results += results
@@ -128,39 +136,57 @@ end
 
 # 2) Test file list with no extensions
 
-file_results = Set.new
-
-files = IO.readlines(FILE_LIST).map do |word|
+files = IO.readlines(FILE_LIST, :encoding => 'ISO-8859-1').map do |word|
     word = word.strip                       # remove newline and whitespace characters
     word = word[1..-1] if word[0,1] == '/'  # remove leading slash if it exists
+    word = word.chomp('/')                  # remove trailing slash if it exists
     word
 end
+files.uniq!
 
 dir_results << target
 
+file_results = SortedSet.new
+
 dir_results.each do |url|
+    STDERR.puts "[*] Testing file list with no extensions - #{url}".green
     file_results += brute(url, HOST, files)
 end
 
-# 3) Test file list with custom extensions (asp, aspx, htm, html, jsp, php).
+# 3) Test file list with custom extensions
 
-files = IO.readlines(FILE_LIST).flat_map do |word|
+files = IO.readlines(FILE_LIST, :encoding => 'ISO-8859-1').flat_map do |word|
     word = word.strip                       # remove newline and whitespace characters
     word = word[1..-1] if word[0,1] == '/'  # remove leading slash if it exists
     combi = Array.new
-    EXTENSIONS.each do |ext|
+    CUSTOM_EXTENSIONS.each do |ext|
         combi << word + '.' + ext
     end
     combi
 end
-
-dir_results << TARGET
+files.uniq!
 
 dir_results.each do |url|
+    STDERR.puts "[*] Testing file list with custom extensions - #{url}".green
     file_results += brute(url, HOST, files)
 end
 
-# 4) Test file list with variant extensions (bac, BAC, backup, BACKUP, bak, BAK, bk, conf, cs, csproj, gz, inc, INC, java, log, lst, old, OLD, orig, ORIG, sav, save, tar, temp, tmp, TMP, vb, vbproj, zip, $$$, -OLD, -old, 0, 1, ~1, ~bk).
+# 4) Test variant extensions on discovered files
+
+files = SortedSet.new
+file_results.each do |url|
+    uri = URI(url)
+    VARIANT_EXTENSIONS.each do |ext|
+        file = uri.path + '.' + ext
+        file = file[1..-1] if file[0,1] == '/'  # remove leading slash if it exists
+        files << file
+    end
+end
+
+STDERR.puts "[*] Testing variant extensions on discovered files".green
+file_results += brute(target, HOST, files)
+
+
 # 5) Test file list with observed extensions (if different from custom/variant), except for (bz2, class, com, doc, docx, exe, gif, gz, jar, jpeg, jpg, mp3, mpeg, mpg, pdf, pif, png, ram, rar, scr, snp, swf, tgz, tif, wav, xls, xlsx, xml, zip).
 # 6) Test observed files with custom extensions.
 # 7) Test observed files with variant extensions.
