@@ -11,8 +11,8 @@ require 'digest'
 
 METHOD = 'GET'
 HOST = nil
-DIR_LIST = File.expand_path(File.dirname(__FILE__) + "/wordlists/web/raft-large-directories-lowercase.txt"
-FILE_LIST = File.expand_path(File.dirname(__FILE__) + "/wordlists/web/raft-large-files-lowercase-noext.txt"
+DIR_LIST = File.expand_path(File.dirname(__FILE__) + "/wordlists/web/raft-large-directories-lowercase.txt")
+FILE_LIST = File.expand_path(File.dirname(__FILE__) + "/wordlists/web/raft-large-files-lowercase-noext.txt")
 USER_AGENTS = File.readlines(File.expand_path(File.dirname(__FILE__) + "/wordlists/user_agents.txt")).each {|line| line.chomp!}
 MAX_CONCURRENCY = 200
 STATUS_CODES = [200, 301, 307, 401]
