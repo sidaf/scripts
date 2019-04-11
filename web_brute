@@ -10,7 +10,6 @@ require 'typhoeus'
 require 'digest'
 
 METHOD = 'GET'
-TARGET = "http://172.22.10.117:8080"
 HOST = nil
 DIR_LIST = File.expand_path(File.dirname(__FILE__) + "/wordlists/web/raft-large-directories-lowercase.txt"
 FILE_LIST = File.expand_path(File.dirname(__FILE__) + "/wordlists/web/raft-large-files-lowercase-noext.txt"
@@ -22,18 +21,7 @@ IGNORE_CONTENT_LENGTH = []
 RECURSE_DEPTH = 5
 EXTENSIONS = ['htm', 'html', 'asp', 'aspx', 'jsp', 'php']
 
-# argument default values 
-
-input = nil
-
-# parse arguments
-
-file = __FILE__
-ARGV.options do |opts|
-    opts.on("-i", "--input FILE", String) { |val| input = val }
-    opts.on_tail("-h", "--help")          { exec "grep ^#/<'#{file}'|cut -c4-" }
-    opts.parse!
-end
+# Functions
 
 def brute(target, hostname, wordlist)
     results = []
@@ -87,6 +75,27 @@ def brute(target, hostname, wordlist)
     results
 end
 
+# argument default values 
+
+target = nil
+
+# parse arguments
+
+file = __FILE__
+ARGV.options do |opts|
+    opts.on("-t", "--target URL", String) { |val| target = val }
+    opts.on_tail("-h", "--help")          { exec "grep ^#/<'#{file}'|cut -c4-" }
+    opts.parse!
+end
+
+
+# check arguments
+
+if target.nil? then
+    puts ARGV.options
+    exit 1
+end
+
 # 1) Test directory list
 
 dir_results = Set.new
@@ -99,7 +108,7 @@ dirs = IO.readlines(DIR_LIST).map do |word|
 end
 
 urls = Set.new
-urls << TARGET
+urls << target
 depth = 0
 
 loop do
@@ -127,7 +136,7 @@ files = IO.readlines(FILE_LIST).map do |word|
     word
 end
 
-dir_results << TARGET
+dir_results << target
 
 dir_results.each do |url|
     file_results += brute(url, HOST, files)
