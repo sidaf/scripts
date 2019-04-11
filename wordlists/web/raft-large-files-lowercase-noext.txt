@@ -7765,7 +7765,6 @@ directorio
 directory
 directory2
 directory3
-directory		e
 directory_pop
 directory-rss
 directredirect

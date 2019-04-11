@@ -122,8 +122,8 @@ loop do
     depth += 1
 
     urls.each do |url|
-    #    STDERR.puts "[*] Testing directory list - #{url}".green
-    #    results += brute(url, HOST, dirs)
+        STDERR.puts "[*] Testing directory list - #{url}".green
+        results += brute(url, HOST, dirs)
     end
 
     break if results.empty?
