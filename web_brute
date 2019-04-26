@@ -121,6 +121,7 @@ if not wordlist.nil? then
     URLS = File.readlines(input).each { |l| l.chomp! }
 
     URLS.each do |target|
+        STDERR.puts "[*] Testing target - #{target}".blue
         target = target.chomp('/')
 
         words = IO.readlines(wordlist, :encoding => 'ISO-8859-1').map do |word|
@@ -136,6 +137,8 @@ else
     URLS = File.readlines(input).each { |l| l.chomp! }
 
     URLS.each do |target|
+        STDERR.puts "[*] Testing target - #{target}".blue
+
         target = target.chomp('/')
 
         # 1) Test directory list

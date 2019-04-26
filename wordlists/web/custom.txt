@@ -32,7 +32,7 @@
 /Auxiliumpetratepro/
 /IDC.php
 /sflog/
-#/struts2-blank/example/HelloWorld.action
+/struts2-blank/example/HelloWorld.action
 /blank-struts2/login.action
 /mobilecartly/
 /mediawiki/index.php?title=Special:UserLogin&returnto=Main_Page
