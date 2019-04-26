@@ -102,9 +102,9 @@ if __name__ == '__main__':
                         default='8.8.8.8')
     parser.add_argument('-w', '--wordlist',
                         action='store',
-                        help='a list of words to use for brute force attack (default: %s/wordlists/hostnames.txt)' % os.path.dirname(os.path.realpath(__file__)),
+                        help='a list of words to use for brute force attack (default: %s/wordlists/dns/hostnames.txt)' % os.path.dirname(os.path.realpath(__file__)),
                         metavar='FILE',
-                        default="%s/wordlists/hostnames.txt" % os.path.dirname(os.path.realpath(__file__)))
+                        default="%s/wordlists/dns/hostnames.txt" % os.path.dirname(os.path.realpath(__file__)))
     parser.add_argument('-f', '--filter',
                         action='store',
                         help='a list of IP addresses to filter against, only matching results are printed',

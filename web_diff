@@ -13,7 +13,7 @@ require "set"
 
 # constant variables
 
-USER_AGENTS = File.readlines(File.expand_path(File.dirname(__FILE__) + "/wordlists/user_agents.txt")).each {|line| line.chomp!}
+USER_AGENTS = File.readlines(File.expand_path(File.dirname(__FILE__) + "/wordlists/web/user_agents.txt")).each {|line| line.chomp!}
 METHOD = 'GET'
 MAX_CONCURRENCY = 200
 IGNORE_STATUS_CODES = []
