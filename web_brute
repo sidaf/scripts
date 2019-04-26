@@ -17,9 +17,9 @@ DIR_LIST = File.expand_path(File.dirname(__FILE__) + "/wordlists/web/raft-large-
 FILE_LIST = File.expand_path(File.dirname(__FILE__) + "/wordlists/web/raft-large-files-lowercase-noext.txt")
 USER_AGENTS = File.readlines(File.expand_path(File.dirname(__FILE__) + "/wordlists/user_agents.txt")).each {|line| line.chomp!}
 MAX_CONCURRENCY = 100
-REPORT_STATUS_CODES = [200, 301, 307, 401]
+REPORT_STATUS_CODES = [200, 401]#, 301, 307]
 SAVE_STATUS_CODES = [200]
-IGNORE_STATUS_CODES = [404,500]
+IGNORE_STATUS_CODES = [404, 500]
 IGNORE_CONTENT_LENGTH = []
 RECURSE = true
 RECURSE_DEPTH = 5
@@ -87,12 +87,14 @@ end
 # argument default values 
 
 input = nil
+wordlist = nil
 
 # parse arguments
 
 file = __FILE__
 ARGV.options do |opts|
     opts.on("-i", "--input FILE", String) { |val| input = val }
+    opts.on("-w", "--wordlist FILE", String) { |val| wordlist = val }
     opts.on_tail("-h", "--help")          { exec "grep ^#/<'#{file}'|cut -c4-" }
     opts.parse!
 end
@@ -109,110 +111,131 @@ if not File.exists?(input)
     exit 1
 end
 
-# read in a list of urls to process
-
-URLS = File.readlines(input).each { |l| l.chomp! }
-
-URLS.each do |target|
-    target = target.chomp('/')
-
-    # 1) Test directory list
-
-    dir_results = SortedSet.new
-
-    dirs = IO.readlines(DIR_LIST, :encoding => 'ISO-8859-1').map do |word|
-        word = word.strip                       # remove newline and whitespace characters
-        word = word[1..-1] if word[0,1] == '/'  # remove leading slash if it exists
-        word += '/' if word[-1,1] != '/'        # add trailing slash if it doesn't exist
+if not wordlist.nil? then
+    if not File.exists?(wordlist)
+        puts "#{wordlist} does not exist!"
+        exit 1
     end
-    dirs.uniq!
 
-    urls = SortedSet.new
-    urls << target
-    depth = 0
+    # read in a list of urls to process
+    URLS = File.readlines(input).each { |l| l.chomp! }
 
-    loop do
-        results = SortedSet.new
-        depth += 1
+    URLS.each do |target|
+        target = target.chomp('/')
 
-        urls.each do |url|
-            STDERR.puts "[*] Testing directory list - #{url}".green
-            results += brute(url, HOST, dirs)
+        words = IO.readlines(wordlist, :encoding => 'ISO-8859-1').map do |word|
+            word = word.strip                       # remove newline and whitespace characters
+            word = word[1..-1] if word[0,1] == '/'  # remove leading slash if it exists
+        end
+        words.uniq!
+
+        results = brute(url, HOST, words)
+    end
+else
+    # read in a list of urls to process
+    URLS = File.readlines(input).each { |l| l.chomp! }
+
+    URLS.each do |target|
+        target = target.chomp('/')
+
+        # 1) Test directory list
+
+        dir_results = SortedSet.new
+
+        dirs = IO.readlines(DIR_LIST, :encoding => 'ISO-8859-1').map do |word|
+            word = word.strip                       # remove newline and whitespace characters
+            word = word[1..-1] if word[0,1] == '/'  # remove leading slash if it exists
+            word += '/' if word[-1,1] != '/'        # add trailing slash if it doesn't exist
+        end
+        dirs.uniq!
+
+        urls = SortedSet.new
+        urls << target
+        depth = 0
+
+        loop do
+            results = SortedSet.new
+            depth += 1
+
+            urls.each do |url|
+                STDERR.puts "[*] Testing directory list - #{url}".green
+                results += brute(url, HOST, dirs)
+            end
+
+            break if results.empty?
+            break unless RECURSE
+            break if depth == RECURSE_DEPTH
+
+            dir_results += results
+            urls = results
         end
 
-        break if results.empty?
-        break unless RECURSE
-        break if depth == RECURSE_DEPTH
+        # 2) Test file list with no extensions
 
-        dir_results += results
-        urls = results
-    end
-
-    # 2) Test file list with no extensions
-
-    files = IO.readlines(FILE_LIST, :encoding => 'ISO-8859-1').map do |word|
-        word = word.strip                       # remove newline and whitespace characters
-        word = word[1..-1] if word[0,1] == '/'  # remove leading slash if it exists
-        word = word.chomp('/')                  # remove trailing slash if it exists
-        word
-    end
-    files.uniq!
-
-    dir_results << target
-
-    file_results = SortedSet.new
-
-    dir_results.each do |url|
-        STDERR.puts "[*] Testing file list with no extensions - #{url}".green
-        file_results += brute(url, HOST, files)
-    end
-
-    # 3) Test file list with custom extensions
-
-    files = IO.readlines(FILE_LIST, :encoding => 'ISO-8859-1').flat_map do |word|
-        word = word.strip                       # remove newline and whitespace characters
-        word = word[1..-1] if word[0,1] == '/'  # remove leading slash if it exists
-        combi = Array.new
-        CUSTOM_EXTENSIONS.each do |ext|
-            combi << word + '.' + ext
+        files = IO.readlines(FILE_LIST, :encoding => 'ISO-8859-1').map do |word|
+            word = word.strip                       # remove newline and whitespace characters
+            word = word[1..-1] if word[0,1] == '/'  # remove leading slash if it exists
+            word = word.chomp('/')                  # remove trailing slash if it exists
+            word
         end
-        combi
-    end
-    files.uniq!
+        files.uniq!
 
-    dir_results.each do |url|
-        STDERR.puts "[*] Testing file list with custom extensions - #{url}".green
-        file_results += brute(url, HOST, files)
-    end
+        dir_results << target
 
-    # 4) Test variant extensions on discovered files
+        file_results = SortedSet.new
 
-    files = SortedSet.new
-    file_results.each do |url|
-        uri = URI(url)
-        VARIANT_EXTENSIONS.each do |ext|
-            file = uri.path + '.' + ext
-            file = file[1..-1] if file[0,1] == '/'  # remove leading slash if it exists
-            files << file
+        dir_results.each do |url|
+            STDERR.puts "[*] Testing file list with no extensions - #{url}".green
+            file_results += brute(url, HOST, files)
         end
+
+        # 3) Test file list with custom extensions
+
+        files = IO.readlines(FILE_LIST, :encoding => 'ISO-8859-1').flat_map do |word|
+            word = word.strip                       # remove newline and whitespace characters
+            word = word[1..-1] if word[0,1] == '/'  # remove leading slash if it exists
+            combi = Array.new
+            CUSTOM_EXTENSIONS.each do |ext|
+                combi << word + '.' + ext
+            end
+            combi
+        end
+        files.uniq!
+
+        dir_results.each do |url|
+            STDERR.puts "[*] Testing file list with custom extensions - #{url}".green
+            file_results += brute(url, HOST, files)
+        end
+
+        # 4) Test variant extensions on discovered files
+
+        files = SortedSet.new
+        file_results.each do |url|
+            uri = URI(url)
+            VARIANT_EXTENSIONS.each do |ext|
+                file = uri.path + '.' + ext
+                file = file[1..-1] if file[0,1] == '/'  # remove leading slash if it exists
+                files << file
+            end
+        end
+
+        STDERR.puts "[*] Testing variant extensions on discovered files".green
+        file_results += brute(target, HOST, files)
+
+        # 5) Test file list with observed extensions (if different from custom/variant), except for (bz2, class, com, doc, docx, exe, gif, gz, jar, jpeg, jpg, mp3, mpeg, mpg, pdf, pif, png, ram, rar, scr, snp, swf, tgz, tif, wav, xls, xlsx, xml, zip).
+        # 6) Test observed files with custom extensions.
+        # 7) Test observed files with variant extensions.
+        # 8) Test observed files with observed extensions, except for (bz2, class, com, doc, docx, exe, gif, gz, jar, jpeg, jpg, mp3, mpeg, mpg, pdf, pif, png, ram, rar, scr, snp, swf, tgz, tif, wav, xls, xlsx, xml, zip).
+
+        # Options:
+        # A) Extract links
+        # B) Files only, directories only, both files and directories
+        # C) Recurse sub-directories (to depth: X)
+
+        # Input: List of URLs
+
+        # Group URLs by IP + hostname, so that enumeration does not happen twice
+        # Split each batch of tests into tasks, and add to a queue
+        # Tasks can then be pushed to top or bottom of queue as appropiate
     end
-
-    STDERR.puts "[*] Testing variant extensions on discovered files".green
-    file_results += brute(target, HOST, files)
-
-    # 5) Test file list with observed extensions (if different from custom/variant), except for (bz2, class, com, doc, docx, exe, gif, gz, jar, jpeg, jpg, mp3, mpeg, mpg, pdf, pif, png, ram, rar, scr, snp, swf, tgz, tif, wav, xls, xlsx, xml, zip).
-    # 6) Test observed files with custom extensions.
-    # 7) Test observed files with variant extensions.
-    # 8) Test observed files with observed extensions, except for (bz2, class, com, doc, docx, exe, gif, gz, jar, jpeg, jpg, mp3, mpeg, mpg, pdf, pif, png, ram, rar, scr, snp, swf, tgz, tif, wav, xls, xlsx, xml, zip).
-
-    # Options:
-    # A) Extract links
-    # B) Files only, directories only, both files and directories
-    # C) Recurse sub-directories (to depth: X)
-
-    # Input: List of URLs
-
-    # Group URLs by IP + hostname, so that enumeration does not happen twice
-    # Split each batch of tests into tasks, and add to a queue
-    # Tasks can then be pushed to top or bottom of queue as appropiate
 end
