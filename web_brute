@@ -129,7 +129,7 @@ if not wordlist.nil? then
         end
         words.uniq!
 
-        results = brute(url, HOST, words)
+        results = brute(target, HOST, words)
     end
 else
     # read in a list of urls to process
