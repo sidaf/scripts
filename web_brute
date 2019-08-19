@@ -17,6 +17,8 @@ DIR_LIST = File.expand_path(File.dirname(__FILE__) + "/wordlists/web/raft-large-
 FILE_LIST = File.expand_path(File.dirname(__FILE__) + "/wordlists/web/raft-large-files-lowercase-noext.txt")
 USER_AGENTS = File.readlines(File.expand_path(File.dirname(__FILE__) + "/wordlists/web/user_agents.txt")).each {|line| line.chomp!}
 MAX_CONCURRENCY = 100
+MAX_TIMEOUTS = 10
+MAX_ERRORS = 10
 REPORT_STATUS_CODES = [200, 401]#, 301, 307]
 SAVE_STATUS_CODES = [200]
 IGNORE_STATUS_CODES = [404, 500]
@@ -39,6 +41,9 @@ def brute(target, hostname, wordlist)
     vhost = hostname || uri.host
     resolve = Ethon::Curl.slist_append(nil, "#{vhost}:#{uri.port}:#{uri.host}")
 
+    max_timeout_counter = 0
+    max_error_counter = 0
+
     wordlist.each do |word|
         url = "#{target.chomp('/')}/#{word}"
 
@@ -55,10 +60,24 @@ def brute(target, hostname, wordlist)
 
         request.on_complete do |response|
             if response.timed_out?
-                STDERR.puts "#{url},TIMEOUT".red
+                max_timeout_counter += 1
+                if max_timeout_counter < MAX_TIMEOUTS
+                  STDERR.puts "#{url},TIMEOUT".red
+                elsif max_timeout_counter == MAX_TIMEOUTS
+                  STDERR.puts "[!] Too many timeouts encountered, aborting.".red
+                  hydra.abort
+                else
+                end
             elsif response.code.zero?
                 # Could not get an http response, something's wrong.
-                STDERR.puts "#{url},ERROR".red
+                max_error_counter += 1
+                if max_error_counter < MAX_ERRORS
+                  STDERR.puts "#{url},ERROR".red
+                elsif max_error_counter == MAX_ERRORS
+                  STDERR.puts "[!] Too many errors encountered, aborting.".red
+                  hydra.abort
+                else
+                end
             else
                 content_length = response.headers['content-length'].nil? ? response.body.size : response.headers['content-length']
 
@@ -127,6 +146,7 @@ if not wordlist.nil? then
         words = IO.readlines(wordlist, :encoding => 'ISO-8859-1').map do |word|
             word = word.strip                       # remove newline and whitespace characters
             word = word[1..-1] if word[0,1] == '/'  # remove leading slash if it exists
+            word
         end
         words.uniq!
 
@@ -149,6 +169,7 @@ else
             word = word.strip                       # remove newline and whitespace characters
             word = word[1..-1] if word[0,1] == '/'  # remove leading slash if it exists
             word += '/' if word[-1,1] != '/'        # add trailing slash if it doesn't exist
+            word
         end
         dirs.uniq!
 
