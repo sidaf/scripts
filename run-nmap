@@ -3,7 +3,7 @@
 all='1-65535'
 tcp_custom='1-1040,1050,1080,1099,1158,1344,1352,1433,1521,1720,1723,1883,1911,1962,2202,2375,2628,2947,3000,3031,3050,3260,3306,3310,3389,3500,3632,4369,5019,5040,5060,5432,5560,5631,5632,5666,5672,5850,5900,5920,5984,5985,6000,6001,6002,6003,6004,6005,6379,6666,7210,7634,7777,8000,8009,8080,8081,8091,8222,8332,8333,8400,8443,8834,9000,9084,9100,9160,9600,9999,10000,11211,12000,12345,13364,19150,27017,28784,30718,35871,37777,46824,49152,50000,50030,50060,50070,50075,50090,60010,60030'
 
-TCP=$all
+TCP=$tcp_custom
 
 udp_leebaird='53,67,123,137,161,407,500,523,623,1434,1604,1900,2302,2362,3478,3671,5353,5683,6481,17185,31337,44818,47808'
 udp_discover='53,67,123,137-139,161,523,1434,1604,5093'
@@ -27,8 +27,8 @@ run_tcp() {
     fi
   fi
 
-  echo "# nmap -v -Pn -sS -sV --version-intensity=9 -O --script=default --traceroute -T4 -p T:$TCP --min-hostgroup=1024 --open --reason --stats-every=10s -oA tcp -iL $FILE" | tee tcp.out
-  nmap -v -Pn -sS -sV --version-intensity 9 -O --script=default --traceroute -T4 -p T:$TCP --min-hostgroup=1024 --open --reason --stats-every 10s -oA tcp -iL $FILE | tee -a tcp.out
+  echo "# nmap -v -Pn --disable-arp-ping -sS -sV --version-intensity=9 -O --script=default --script-timeout=30m --traceroute -T4 -p T:$TCP --min-hostgroup=1024 --open --reason --stats-every=10s -oA tcp -iL $FILE" | tee tcp.out
+  nmap -v -Pn --disable-arp-ping -sS -sV --version-intensity 9 -O --script=default --script-timeout=30m --traceroute -T4 -p T:$TCP --min-hostgroup=1024 --open --reason --stats-every 10s -oA tcp -iL $FILE | tee -a tcp.out
 }
 
 run_udp() {
@@ -44,8 +44,8 @@ run_udp() {
     fi
   fi
 
-  echo "# nmap -v -Pn -sU -sV --version-intensity=2 -O --script=default --traceroute -T4 -p U:$UDP --min-hostgroup=1024 --open --reason --stats-every=10s -oA udp -iL $FILE" | tee udp.out
-  nmap -v -Pn -sU -sV --version-intensity 2 -O --script=default --traceroute -T4 -p U:$UDP --min-hostgroup=1024 --open --reason --stats-every 10s -oA udp -iL $FILE | tee -a udp.out
+  echo "# nmap -v -Pn --disable-arp-ping -sU -sV --version-intensity=2 -O --script=default --script-timeout=30m --traceroute -T4 -p U:$UDP --min-hostgroup=1024 --open --reason --stats-every=10s -oA udp -iL $FILE" | tee udp.out
+  nmap -v -Pn --disable-arp-ping -sU -sV --version-intensity 2 -O --script=default --script-timeout=30m --traceroute -T4 -p U:$UDP --min-hostgroup=1024 --open --reason --stats-every 10s -oA udp -iL $FILE | tee -a udp.out
 }
 
 if [ -z $1 ];then
