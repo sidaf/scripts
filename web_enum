@@ -1,0 +1,196 @@
+#!/usr/bin/env ruby
+#/ Usage: web_enum [options] ...
+#/
+#/ This script ...
+
+$stdout.sync = $stderr.sync = true
+
+require 'optparse'
+require 'colorize'
+require 'typhoeus'
+require 'digest'
+require 'yaml'
+
+
+HOST = nil
+FINGERPRINTS = File.expand_path(File.dirname(__FILE__) + "/wordlists/web/http_fingerprints.yml")
+USER_AGENTS = File.readlines(File.expand_path(File.dirname(__FILE__) + "/wordlists/web/user_agents.txt")).each {|line| line.chomp!}
+MAX_CONCURRENCY = 100
+
+# functions
+
+def response_contains(response, pattern, case_sensitive=false)
+    captures = Array.new
+
+    # If they're searching for the empty string or nil, it's true
+    if pattern.nil? or pattern.empty?
+      return true, captures
+    end
+
+    if case_sensitive
+      regex = Regexp.new(pattern, Regexp::MULTILINE)
+    else
+      regex = Regexp.new(pattern, Regexp::MULTILINE || Regexp::IGNORECASE)
+    end
+
+    # Check the headers
+    if response.response_headers.match(regex)
+      captures = response.response_headers.match(regex).captures
+      return true, captures
+    end
+
+    # Check the body
+    if response.response_body.match(regex)
+      captures = response.response_body.match(regex).captures
+      return true, captures
+    end
+
+    return false, captures
+  end
+
+def check(target, hostname, fingerprint)
+    results = SortedSet.new
+
+    Typhoeus::Config.user_agent = USER_AGENTS.sample
+    
+    uri = URI(target)
+    vhost = hostname || uri.host
+    resolve = Ethon::Curl.slist_append(nil, "#{vhost}:#{uri.port}:#{uri.host}")
+
+    max_timeout_counter = 0
+    max_error_counter = 0
+
+    category = fingerprint['category']
+    probes = fingerprint['probes']
+    matches = fingerprint['matches']
+
+    # loop through probes
+    probes.each do |probe|
+        output = nil
+
+        if probe.key?('method')
+            method = probe['method']
+        else
+            method = 'GET'
+        end
+
+        url = "#{target.chomp('/')}/#{probe['path']}"
+
+        request = Typhoeus::Request.new(
+            url,
+            resolve: resolve,
+            method: METHOD,
+            followlocation: false,
+            connecttimeout: 15,
+            timeout: 20,
+            ssl_verifyhost: 0,
+            ssl_verifypeer: false
+        )
+
+        response = request.run
+
+        if response.timed_out?
+            max_timeout_counter += 1
+            if max_timeout_counter < MAX_TIMEOUTS
+                STDERR.puts "#{url},TIMEOUT".red
+                next
+            elsif max_timeout_counter == MAX_TIMEOUTS
+                STDERR.puts "[!] Too many timeouts encountered, aborting.".red
+                return
+            else
+            end
+        
+        if response.code.zero?
+            # Could not get an http response, something's wrong.
+            max_error_counter += 1
+            if max_error_counter < MAX_ERRORS
+                STDERR.puts "#{url},ERROR".red
+                next
+            elsif max_error_counter == MAX_ERRORS
+                STDERR.puts "[!] Too many errors encountered, aborting.".red
+                return
+            else
+            end
+        end
+
+        next unless response.code == 200
+
+        # loop through matches
+        matches.each do |match|
+            output = nil
+
+            # Change blank 'match' strings to '.*' so they match everything
+            if match['match'].nil? or match['match'].empty?
+                match['match'] = '(.*)'
+            end
+
+            success, captures = response_contains(response, match['match'])
+            if success
+                output = match['output']
+                captures.length.times do |count|
+                output.gsub!('\\' + (count.to_i + 1).to_s, captures[count])
+                end
+            end
+
+            if match.key?('dontmatch')
+                success, captures = response_contains(response, match['dontmatch'])
+                output = nil if success
+            end
+
+            break if output
+        end
+
+        # no matches found, move on to next probe
+        next if output.nil?
+
+        puts "#{url} - #{output}"
+    end
+end
+
+
+# argument default values 
+
+input = nil
+wordlist = nil
+
+# parse arguments
+
+file = __FILE__
+ARGV.options do |opts|
+    opts.on("-i", "--input FILE", String) { |val| input = val }
+    opts.on_tail("-h", "--help")          { exec "grep ^#/<'#{file}'|cut -c4-" }
+    opts.parse!
+end
+
+# check arguments
+
+if input.nil? then
+    puts ARGV.options
+    exit 1
+end
+
+if not File.exists?(input)
+    puts "#{input} does not exist!"
+    exit 1
+end
+
+if not File.exists?(FINGERPRINTS)
+    puts "#{FINGERPRINTS} does not exist!"
+    exit 1
+end
+
+fingerprints = YAML.load_file(FINGERPRINTS)
+
+pool = Concurrent::FixedThreadPool.new(50)
+
+# read in a list of urls to process
+URLS = File.readlines(input).each { |l| l.chomp! }
+    fingerprints.each do |fingerprint|
+        pool.post do
+            check(target, HOST, fingerprint)
+        end
+    end
+end
+
+pool.shutdown
+pool.wait_for_termination
