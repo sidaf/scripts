@@ -19,6 +19,7 @@ USER_AGENTS = File.readlines(File.expand_path(File.dirname(__FILE__) + "/wordlis
 MAX_CONCURRENCY = 50
 MAX_TIMEOUTS = 10
 MAX_ERRORS = 10
+STATUS_CODES = [200]
 
 # functions
 
@@ -117,7 +118,7 @@ def check(target, hostname, fingerprint, verbose)
             end
         end
 
-        next unless response.code == 200
+        next unless STATUS_CODES.include? response.code
 
         # loop through matches
         matches.each do |match|
@@ -132,7 +133,7 @@ def check(target, hostname, fingerprint, verbose)
             if success
                 output = match['output']
                 captures.length.times do |count|
-                output.gsub!('\\' + (count.to_i + 1).to_s, captures[count])
+                    output.gsub!('\\' + (count.to_i + 1).to_s, captures[count])
                 end
             end
 
@@ -157,12 +158,14 @@ end
 input = nil
 wordlist = nil
 verbose = false
+fingerprint_file = nil
 
 # parse arguments
 
 file = __FILE__
 ARGV.options do |opts|
     opts.on("-i", "--input FILE", String) { |val| input = val }
+    opts.on("-f", "--fingerprints FILE", String) { |val| fingerprint_file = val }
     opts.on("-v", "--verbose")            { |val| verbose = val }
     opts.on_tail("-h", "--help")          { exec "grep ^#/<'#{file}'|cut -c4-" }
     opts.parse!
@@ -180,13 +183,17 @@ if not File.exists?(input)
     exit 1
 end
 
-if not File.exists?(FINGERPRINTS)
-    puts "#{FINGERPRINTS} does not exist!"
+if fingerprint_file.nil? then
+    fingerprint_file = FINGERPRINTS
+end
+
+if not File.exists?(fingerprint_file)
+    puts "#{fingerprint_file} does not exist!"
     exit 1
 end
 
 urls = File.readlines(input).each { |l| l.chomp! }
-fingerprints = YAML.load_file(FINGERPRINTS)
+fingerprints = YAML.load_file(fingerprint_file)
 
 pool = Concurrent::FixedThreadPool.new(MAX_CONCURRENCY)
 

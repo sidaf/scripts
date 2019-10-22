@@ -2991,7 +2991,7 @@
   - method: HEAD
     path: /owa/8.1.375.2/themes/base/lgntopl.gif
   - method: HEAD
-    path: /owa/
+    path: /owa/auth/logon.aspx
   category: microsoft
   matches:
   - output: Outlook Web Access
