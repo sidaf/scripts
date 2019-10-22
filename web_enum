@@ -10,12 +10,15 @@ require 'colorize'
 require 'typhoeus'
 require 'digest'
 require 'yaml'
+require 'concurrent'
 
 
 HOST = nil
 FINGERPRINTS = File.expand_path(File.dirname(__FILE__) + "/wordlists/web/http_fingerprints.yml")
 USER_AGENTS = File.readlines(File.expand_path(File.dirname(__FILE__) + "/wordlists/web/user_agents.txt")).each {|line| line.chomp!}
-MAX_CONCURRENCY = 100
+MAX_CONCURRENCY = 50
+MAX_TIMEOUTS = 10
+MAX_ERRORS = 10
 
 # functions
 
@@ -30,7 +33,7 @@ def response_contains(response, pattern, case_sensitive=false)
     if case_sensitive
       regex = Regexp.new(pattern, Regexp::MULTILINE)
     else
-      regex = Regexp.new(pattern, Regexp::MULTILINE || Regexp::IGNORECASE)
+      regex = Regexp.new(pattern, Regexp::MULTILINE | Regexp::IGNORECASE)
     end
 
     # Check the headers
@@ -46,13 +49,13 @@ def response_contains(response, pattern, case_sensitive=false)
     end
 
     return false, captures
-  end
+end
 
-def check(target, hostname, fingerprint)
+def check(target, hostname, fingerprint, verbose)
     results = SortedSet.new
 
     Typhoeus::Config.user_agent = USER_AGENTS.sample
-    
+
     uri = URI(target)
     vhost = hostname || uri.host
     resolve = Ethon::Curl.slist_append(nil, "#{vhost}:#{uri.port}:#{uri.host}")
@@ -74,12 +77,12 @@ def check(target, hostname, fingerprint)
             method = 'GET'
         end
 
-        url = "#{target.chomp('/')}/#{probe['path']}"
+        url = "#{target.chomp('/')}#{probe['path']}"
 
         request = Typhoeus::Request.new(
             url,
             resolve: resolve,
-            method: METHOD,
+            method: method,
             followlocation: false,
             connecttimeout: 15,
             timeout: 20,
@@ -92,22 +95,23 @@ def check(target, hostname, fingerprint)
         if response.timed_out?
             max_timeout_counter += 1
             if max_timeout_counter < MAX_TIMEOUTS
-                STDERR.puts "#{url},TIMEOUT".red
+                STDERR.puts "[TIMEOUT] #{url}".red if verbose
                 next
             elsif max_timeout_counter == MAX_TIMEOUTS
-                STDERR.puts "[!] Too many timeouts encountered, aborting.".red
+                STDERR.puts "[TIMEOUT] Too many timeouts encountered, aborting fingerprint.".red if verbose
                 return
             else
             end
-        
+        end
+
         if response.code.zero?
             # Could not get an http response, something's wrong.
             max_error_counter += 1
             if max_error_counter < MAX_ERRORS
-                STDERR.puts "#{url},ERROR".red
+                STDERR.puts "[ERROR] #{url}".red if verbose
                 next
             elsif max_error_counter == MAX_ERRORS
-                STDERR.puts "[!] Too many errors encountered, aborting.".red
+                STDERR.puts "[ERROR] Too many errors encountered, aborting fingerprint.".red if verbose
                 return
             else
             end
@@ -143,21 +147,23 @@ def check(target, hostname, fingerprint)
         # no matches found, move on to next probe
         next if output.nil?
 
-        puts "#{url} - #{output}"
+        puts "#{output} - #{url}"
     end
 end
 
 
-# argument default values 
+# argument default values
 
 input = nil
 wordlist = nil
+verbose = false
 
 # parse arguments
 
 file = __FILE__
 ARGV.options do |opts|
     opts.on("-i", "--input FILE", String) { |val| input = val }
+    opts.on("-v", "--verbose")            { |val| verbose = val }
     opts.on_tail("-h", "--help")          { exec "grep ^#/<'#{file}'|cut -c4-" }
     opts.parse!
 end
@@ -179,18 +185,24 @@ if not File.exists?(FINGERPRINTS)
     exit 1
 end
 
+urls = File.readlines(input).each { |l| l.chomp! }
 fingerprints = YAML.load_file(FINGERPRINTS)
 
-pool = Concurrent::FixedThreadPool.new(50)
+pool = Concurrent::FixedThreadPool.new(MAX_CONCURRENCY)
 
-# read in a list of urls to process
-URLS = File.readlines(input).each { |l| l.chomp! }
-    fingerprints.each do |fingerprint|
+fingerprints.each do |fingerprint|
+    urls.each do |target|
         pool.post do
-            check(target, HOST, fingerprint)
+            begin
+                check(target, HOST, fingerprint, verbose)
+            rescue => exception
+              puts exception.backtrace
+              raise
+            end
         end
     end
 end
 
 pool.shutdown
 pool.wait_for_termination
+
