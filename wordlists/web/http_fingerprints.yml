@@ -2998,6 +2998,13 @@
     match: ''
 - probes:
   - method: HEAD
+    path: /adfs/ls/IdpInitiatedSignOn.aspx
+  category: microsoft
+  matches:
+  - output: Active Directory Federation Services (ADFS)
+    match: ''
+- probes:
+  - method: HEAD
     path: /tsweb/
   category: microsoft
   matches:
