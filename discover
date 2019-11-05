@@ -1,0 +1,39 @@
+#!/bin/bash
+
+IN=$1
+
+if [[ -z "$IN" ]]; then
+  echo Please provide an input file containing a list of targets as an argument!
+  exit 1
+fi
+
+if [[ ! -f $IN ]]; then
+  echo The file \'$IN\' does not exist!
+  exit 1
+fi
+
+ACK='3100-3150,10001-10050,33500-33550,35000-35050'
+FRAG='21,22,25,80,443'
+SYN='7,9,13,21-23,25-26,37,53,79,80-81,88,106,110-111,113,119,135,139,143-144,179,199,389,427,443-445,465,513-515,543,544,548,554,587,631,646,873,990,993,995,1025-1029,1110,1433,1720,1723,1755,1900,2000-2001,2049,2121,2717,3000,3128,3306,3389,3986,4899,5000,5009,5051,5060,5101,5190,5357,5432,5631,5666,5800,5900,6000-6001,6646,7070,8000,8008-8009,8080,8081,8443,8888,9100,9999,10000,32768,49152-49157'
+UDP='53,67,68-69,111,123,135,137-139,161-162,445,500,514,520,631,998,1434,1701,1900,4500,5353,49152,49154'
+
+# Use ICMP to determine the existence of all hosts
+nmap -v --stats-every 10s -n -T4 --min-hostgroup 1024 --reason -sn -PE -PP -PM -oA icmp -iL $IN
+
+# Discover hosts by sending IP packets with a specific protocol numbers (ICMP, IGMP, IP-in-IP) set in the IP header
+nmap -v --stats-every 10s -n -T4 --min-hostgroup 1024 --reason -sn -PO -oA proto -iL $IN
+
+# Use a TCP source port 80 and ACK on ports 3100-3150, 10001-10050, 33500-33550, and 50 random ports above 35000 for all hosts in the network
+nmap -v --stats-every 10s -n -T4 --min-hostgroup 1024 --reason -sn --source-port 80 -PA$ACK -oA ack -iL $IN
+
+# Use TCP fragments in reverse order with FIN, NULL, and XMAS scans on ports 21, 22, 25, 80, and 443 for all hosts in the networ
+nmap -v --stats-every 10s -n -T4 --min-hostgroup 1024 --reason -Pn -sN -sF -sX -p $FRAG -oA frag -iL $IN
+
+# Discover hosts by sending empty TCP packets with the SYN flag set to the most common 100 ports
+nmap -v --stats-every 10s -n -T4 --min-hostgroup 1024 --reason -sn -PS$SYN -oA syn -iL $IN
+
+# Discover hosts by sending UDP packets to the top 25 ports
+nmap -v --stats-every 10s -n -T4 --min-hostgroup 1024 --reason -sn -PU$UDP -oA udp -iL $IN
+
+# Produce list of hosts
+grep "Status: Up" *.gnmap | cut -d " " -f 2 | sort -V | uniq > hosts.txt
