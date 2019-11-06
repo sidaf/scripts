@@ -58,8 +58,9 @@ def extract_san(target):
         sys.stderr.write("Error extracting certificate from host %s:%s, %s\n" % (ip_address, port, e))
         return
 
-    name = x509.get_subject().commonName.lower().strip()
-    print_potential_host(ip_address, name)
+    if x509.get_subject().commonName is not None:
+        name = x509.get_subject().commonName.lower().strip()
+        print_potential_host(ip_address, name)
 
     text = OpenSSL.crypto.dump_certificate(OpenSSL.crypto.FILETYPE_TEXT, x509).decode("utf-8")
 
@@ -72,8 +73,9 @@ def extract_san(target):
     for part in sans_parts:
         if part.startswith('DNS:'):
             name = part.split(':')[1].strip()
-            name = name.lower()
-            print_potential_host(ip_address, name)
+            if name is not None:
+                name = name.lower()
+                print_potential_host(ip_address, name)
 
 
 def initializer():
