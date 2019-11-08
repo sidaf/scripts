@@ -219,7 +219,7 @@ else
     URLS = File.readlines(input).each { |l| l.chomp! }
 
     URLS.each do |target|
-        STDERR.puts "[*] Testing target - #{target}".blue
+        STDERR.puts "[*] Testing target - #{target}".green
 
         target = target.chomp('/')
 
@@ -251,7 +251,7 @@ else
             depth += 1
 
             urls.each do |url|
-                STDERR.puts "[*] Testing directory list - #{url}".green
+                STDERR.puts "[*] Testing directory list - #{url}".blue
                 results += brute(url, HOST, dirs, ecode, emesg)
             end
 
@@ -278,7 +278,7 @@ else
         file_results = SortedSet.new
 
         dir_results.each do |url|
-            STDERR.puts "[*] Testing file list with no extensions - #{url}".green
+            STDERR.puts "[*] Testing file list with no extensions - #{url}".blue
             file_results += brute(url, HOST, files, ecode, emesg)
         end
 
@@ -296,7 +296,7 @@ else
         files.uniq!
 
         dir_results.each do |url|
-            STDERR.puts "[*] Testing file list with custom extensions - #{url}".green
+            STDERR.puts "[*] Testing file list with custom extensions - #{url}".blue
             file_results += brute(url, HOST, files, ecode, emesg)
         end
 
@@ -312,7 +312,7 @@ else
             end
         end
 
-        STDERR.puts "[*] Testing variant extensions on discovered files".green
+        STDERR.puts "[*] Testing variant extensions on discovered files".blue
         file_results += brute(target, HOST, files, ecode, emesg)
 
         # 5) Test file list with observed extensions (if different from custom/variant), except for (bz2, class, com, doc, docx, exe, gif, gz, jar, jpeg, jpg, mp3, mpeg, mpg, pdf, pif, png, ram, rar, scr, snp, swf, tgz, tif, wav, xls, xlsx, xml, zip).
