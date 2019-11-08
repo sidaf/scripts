@@ -16,12 +16,66 @@ require 'concurrent'
 HOST = nil
 FINGERPRINTS = File.expand_path(File.dirname(__FILE__) + "/wordlists/web/http_fingerprints.yml")
 USER_AGENTS = File.readlines(File.expand_path(File.dirname(__FILE__) + "/wordlists/web/user_agents.txt")).each {|line| line.chomp!}
+HTTP_404_SIGS = File.readlines(File.expand_path(File.dirname(__FILE__) + "/wordlists/web/404_signatures.txt")).each {|line| line.chomp!}
 MAX_CONCURRENCY = 50
 MAX_TIMEOUTS = 10
 MAX_ERRORS = 10
 STATUS_CODES = [200]
 
 # functions
+
+def detect_page_not_found(target, hostname, verbose)
+    conn = true
+    ecode = nil
+    emesg = nil
+
+    uri = URI(target)
+    vhost = hostname || uri.host
+    resolve = Ethon::Curl.slist_append(nil, "#{vhost}:#{uri.port}:#{uri.host}")
+
+    random_string = Array.new(8){[*'a'..'z'].sample}.join
+    url = "#{target.chomp('/')}/#{random_string}.html"
+
+    method = 'GET'
+
+    request = Typhoeus::Request.new(
+        url,
+        resolve: resolve,
+        method: method,
+        followlocation: false,
+        connecttimeout: 15,
+        timeout: 20,
+        ssl_verifyhost: 0,
+        ssl_verifypeer: false
+    )
+
+    response = request.run
+
+    if not response.timed_out?
+        if not response.code.zero?
+            # Look for a string we can signature on as well
+            if(response.code >= 200 and response.code <= 299)
+                HTTP_404_SIGS.each do |sig|
+                    if(response.response_body.index(sig))
+                        emesg = sig
+                        STDERR.puts("[INFO] Using custom 404 string of '#{emesg}' for #{target}".blue) if verbose
+                        break
+                    end
+                end
+
+                #if(not emesg)
+                #    emesg = response.response_body[0,256]
+                #    STDERR.puts("[INFO] Using first 256 bytes of the response as 404 string for #{target}".blue) if verbose
+                #end
+            else
+                ecode = response.code
+                STDERR.puts("[INFO] Using code '#{ecode}' as not found for #{target}".blue) if verbose
+            end
+        end
+    end
+
+    return ecode, emesg
+end
 
 def response_contains(response, pattern, case_sensitive=false)
     captures = Array.new
@@ -34,7 +88,7 @@ def response_contains(response, pattern, case_sensitive=false)
     if case_sensitive
       regex = Regexp.new(pattern, Regexp::MULTILINE)
     else
-      regex = Regexp.new(pattern, Regexp::MULTILINE | Regexp::IGNORECASE)
+      regex = Regexp.new(pattern, Regexp::IGNORECASE | Regexp::MULTILINE)
     end
 
     # Check the headers
@@ -52,7 +106,7 @@ def response_contains(response, pattern, case_sensitive=false)
     return false, captures
 end
 
-def check(target, hostname, fingerprint, verbose)
+def check(target, hostname, fingerprint, ecode, emesg, verbose)
     results = SortedSet.new
 
     Typhoeus::Config.user_agent = USER_AGENTS.sample
@@ -118,7 +172,8 @@ def check(target, hostname, fingerprint, verbose)
             end
         end
 
-        next unless STATUS_CODES.include? response.code
+        next unless STATUS_CODES.include? response.code # is this line still needed with the line below in place!?
+        next if ((response.code == ecode) or (emesg and response.response_body.index(emesg)))
 
         # loop through matches
         matches.each do |match|
@@ -197,13 +252,20 @@ fingerprints = YAML.load_file(fingerprint_file)
 
 pool = Concurrent::FixedThreadPool.new(MAX_CONCURRENCY)
 
-fingerprints.each do |fingerprint|
-    urls.each do |target|
+urls.each do |target|
+    ecode, emesg = detect_page_not_found(target, HOST, verbose)
+
+    if ecode.nil? and emesg.nil?
+      STDERR.puts "[ERROR] 'Page Not Found' identifier could not be found, omitting #{target}".red
+      next
+    end
+
+    fingerprints.each do |fingerprint|
         pool.post do
             begin
-                check(target, HOST, fingerprint, verbose)
+                check(target, HOST, fingerprint, ecode, emesg, verbose)
             rescue => exception
-              puts exception.backtrace
+              STDERR.puts exception.backtrace
               raise
             end
         end

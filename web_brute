@@ -31,7 +31,61 @@ IGNORE_EXTENSIONS = ['7z', 'aac', 'bz2', 'class', 'com', 'dmg', 'doc', 'docx', '
 
 # functions
 
-def brute(target, hostname, wordlist)
+def detect_page_not_found(target, hostname)
+    conn = true
+    ecode = nil
+    emesg = nil
+
+    uri = URI(target)
+    vhost = hostname || uri.host
+    resolve = Ethon::Curl.slist_append(nil, "#{vhost}:#{uri.port}:#{uri.host}")
+
+    random_string = Array.new(8){[*'a'..'z'].sample}.join
+    url = "#{target.chomp('/')}/#{random_string}.html"
+
+    method = 'GET'
+
+    request = Typhoeus::Request.new(
+        url,
+        resolve: resolve,
+        method: method,
+        followlocation: false,
+        connecttimeout: 15,
+        timeout: 20,
+        ssl_verifyhost: 0,
+        ssl_verifypeer: false
+    )
+
+    response = request.run
+
+    if not response.timed_out?
+        if not response.code.zero?
+            # Look for a string we can signature on as well
+            if(response.code >= 200 and response.code <= 299)
+                HTTP_404_SIGS.each do |sig|
+                    if(response.response_body.index(sig))
+                        emesg = sig
+                        STDERR.puts("[*] Using custom 404 string of '#{emesg}' for #{target}".blue)
+                        break
+                    end
+                end
+
+                #if(not emesg)
+                #    emesg = response.response_body[0,256]
+                #    STDERR.puts("[*] Using first 256 bytes of the response as 404 string for #{target}".blue)
+                #end
+            else
+                ecode = response.code
+                STDERR.puts("[*] Using code '#{ecode}' as not found for #{target}".blue)
+            end
+        end
+    end
+
+    return ecode, emesg
+end
+
+
+def brute(target, hostname, wordlist, ecode, emesg)
     results = SortedSet.new
 
     Typhoeus::Config.user_agent = USER_AGENTS.sample
@@ -62,7 +116,7 @@ def brute(target, hostname, wordlist)
             if response.timed_out?
                 max_timeout_counter += 1
                 if max_timeout_counter < MAX_TIMEOUTS
-                  STDERR.puts "#{url},TIMEOUT".red
+                  #STDERR.puts "#{url},TIMEOUT".red
                 elsif max_timeout_counter == MAX_TIMEOUTS
                   STDERR.puts "[!] Too many timeouts encountered, aborting.".red
                   hydra.abort
@@ -72,19 +126,20 @@ def brute(target, hostname, wordlist)
                 # Could not get an http response, something's wrong.
                 max_error_counter += 1
                 if max_error_counter < MAX_ERRORS
-                  STDERR.puts "#{url},ERROR".red
+                  #STDERR.puts "#{url},ERROR".red
                 elsif max_error_counter == MAX_ERRORS
                   STDERR.puts "[!] Too many errors encountered, aborting.".red
                   hydra.abort
                 else
                 end
             else
-                content_length = response.headers['content-length'].nil? ? response.body.size : response.headers['content-length']
-
-                next if IGNORE_CONTENT_LENGTH.include? content_length
                 next if IGNORE_STATUS_CODES.include? response.code
+                next if ((response.code == ecode) or (emesg and response.response_body.index(emesg)))
 
-                results << url if SAVE_STATUS_CODES.include? response.code 
+                content_length = response.headers['content-length'].nil? ? response.body.size : response.headers['content-length']
+                next if IGNORE_CONTENT_LENGTH.include? content_length
+
+                results << url if SAVE_STATUS_CODES.include? response.code
 
                 next unless REPORT_STATUS_CODES.empty? or REPORT_STATUS_CODES.include? response.code
 
@@ -143,6 +198,13 @@ if not wordlist.nil? then
         STDERR.puts "[*] Testing target - #{target}".blue
         target = target.chomp('/')
 
+        ecode, emesg = detect_page_not_found(target, HOST)
+
+        if ecode.nil? and emesg.nil?
+            STDERR.puts "[!] 'Page Not Found' identifier could not be found, omitting #{target}".red
+            next
+        end
+
         words = IO.readlines(wordlist, :encoding => 'ISO-8859-1').map do |word|
             word = word.strip                       # remove newline and whitespace characters
             word = word[1..-1] if word[0,1] == '/'  # remove leading slash if it exists
@@ -150,7 +212,7 @@ if not wordlist.nil? then
         end
         words.uniq!
 
-        results = brute(target, HOST, words)
+        results = brute(target, HOST, words, ecode, emesg)
     end
 else
     # read in a list of urls to process
@@ -160,6 +222,13 @@ else
         STDERR.puts "[*] Testing target - #{target}".blue
 
         target = target.chomp('/')
+
+        ecode, emesg = detect_page_not_found(target, HOST)
+
+        if ecode.nil? and emesg.nil?
+            STDERR.puts "[ERROR] 'Page Not Found' identifier could not be found, omitting #{target}".red
+            next
+        end
 
         # 1) Test directory list
 
@@ -183,7 +252,7 @@ else
 
             urls.each do |url|
                 STDERR.puts "[*] Testing directory list - #{url}".green
-                results += brute(url, HOST, dirs)
+                results += brute(url, HOST, dirs, ecode, emesg)
             end
 
             break if results.empty?
@@ -210,7 +279,7 @@ else
 
         dir_results.each do |url|
             STDERR.puts "[*] Testing file list with no extensions - #{url}".green
-            file_results += brute(url, HOST, files)
+            file_results += brute(url, HOST, files, ecode, emesg)
         end
 
         # 3) Test file list with custom extensions
@@ -228,7 +297,7 @@ else
 
         dir_results.each do |url|
             STDERR.puts "[*] Testing file list with custom extensions - #{url}".green
-            file_results += brute(url, HOST, files)
+            file_results += brute(url, HOST, files, ecode, emesg)
         end
 
         # 4) Test variant extensions on discovered files
@@ -244,7 +313,7 @@ else
         end
 
         STDERR.puts "[*] Testing variant extensions on discovered files".green
-        file_results += brute(target, HOST, files)
+        file_results += brute(target, HOST, files, ecode, emesg)
 
         # 5) Test file list with observed extensions (if different from custom/variant), except for (bz2, class, com, doc, docx, exe, gif, gz, jar, jpeg, jpg, mp3, mpeg, mpg, pdf, pif, png, ram, rar, scr, snp, swf, tgz, tif, wav, xls, xlsx, xml, zip).
         # 6) Test observed files with custom extensions.
