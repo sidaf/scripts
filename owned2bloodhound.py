@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+
+import sys
 import requests
 import base64
 import argparse
@@ -6,15 +8,15 @@ import argparse
 parser = argparse.ArgumentParser(description='Mark Bloodhound owned from list.')
 parser.add_argument('-c', '--creds',
                     action='store',
-                    help='Credentials for Neo4j (Default: neo4j:neo4j)',
+                    help='Credentials for Neo4j (Default: neo4j:toor)',
                     metavar='CREDS',
-                    default='neo4j')
+                    default='neo4j:toor')
 parser.add_argument('-s', '--server',
                     action='store',
                     help='Server for Neo4j (Default: localhost:7474)',
                     metavar='SERVER',
                     default='localhost:7474')
-parser.add_argument('-c', '--computers',
+parser.add_argument('--computers',
                     action='store_true',
                     help='Treat input as computer accounts rather than user accounts')
 parser.add_argument('file',
@@ -44,14 +46,14 @@ try:
 except KeyboardInterrupt:
     exit()
 
-if (args.computers)
+if (args.computers):
     for o in owned:
         statement = "MATCH (n) WHERE n.name =~ '(?i)^{}\\\\..*$' SET n.owned=true RETURN n".format(o)
-        #runcypher(args.server,statement,auth)
+        runcypher(args.server,statement,auth)
         print('marked computer: {} owned'.format(o))
-else
+else:
     for o in owned:
         statement = "MATCH (n) WHERE n.name =~ '(?i)^{}$' SET n.owned=true RETURN n".format(o)
-        #runcypher(args.server,statement,auth)
+        runcypher(args.server,statement,auth)
         print('marked user: {} owned'.format(o))
 
