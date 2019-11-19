@@ -7,20 +7,25 @@ $stdout.sync = $stderr.sync = true
 
 require 'optparse'
 require 'selenium-webdriver'
+require 'csv'
+require 'set'
 
 # constant variables
 
-TIMEOUT = 15
+TIMEOUT = 20
 
 # argument default values 
 
 input = nil
+hostnames = nil
+vhosts = nil
 
 # parse arguments
 
 file = __FILE__
 ARGV.options do |opts|
     opts.on("-i", "--input FILE", String) { |val| input = val }
+    opts.on("-n", "--hostnames FILE", String) { |val| hostnames = val }
     opts.on_tail("-h", "--help")          { exec "grep ^#/<'#{file}'|cut -c4-" }
     opts.parse!
 end
@@ -37,7 +42,27 @@ if not File.exists?(input)
     exit 1
 end
 
-# read in a list of urls ro process
+unless hostnames.nil?
+    if not File.exists?(input)
+        puts "#{input} does not exist!"
+        exit 1
+    end
+
+    # Import IP address and virtual host pairs
+    vhosts = Hash.new
+    CSV.foreach(hostnames, { :skip_blanks => true }) do |row|
+        ip = row[0].strip
+        fqdn = row[1]
+        unless fqdn.empty?
+            unless vhosts.has_key? ip
+                vhosts[ip] = SortedSet.new
+            end
+            vhosts[ip] << fqdn.strip.downcase
+        end
+    end
+end
+
+# read in a list of urls to process
 
 URLS = File.readlines(input).each {|l| l.chomp!}
 
@@ -58,23 +83,38 @@ client.read_timeout = TIMEOUT + 5
 # process urls
 
 URLS.each do |url|
-    begin
-        STDERR.puts "Starting browser"
-        driver = Selenium::WebDriver.for :chrome, options: options, http_client: client
-        driver.manage.timeouts.page_load = TIMEOUT
-        STDERR.puts " - Navigating to #{url}"
-        driver.navigate.to url
-        #driver.manage.window.resize_to(1024, 768)
-        filename = url.gsub(/:\/\//, '_').gsub(/\//, '.').gsub(/:/, '_')
-        STDERR.puts " - Taking screenshot"
-        driver.save_screenshot "#{filename}.png"
-    rescue Selenium::WebDriver::Error::TimeOutError
-        STDERR.puts ' - Timeout'
-        next
-    ensure
+    host = URI.parse(url).host
+    port = URI.parse(url).port
+    Dir.mkdir(host) unless Dir.exist?(host)
+    Dir.mkdir("#{host}/#{port}") unless Dir.exist?("#{host}/#{port}")
+
+    hosts = vhosts[host]
+    hosts = SortedSet.new if hosts.nil?
+    hosts << host
+
+    hosts.each do |vhost|
+        uri = URI(url)
+        uri.host = vhost
+        filename = "#{host}/#{port}/#{vhost}.png"
         begin
-        STDERR.puts " - Closing browser"
-        driver.quit
+            STDERR.puts "Starting browser"
+            driver = Selenium::WebDriver.for :chrome, options: options, http_client: client
+            driver.manage.timeouts.page_load = TIMEOUT
+            STDERR.puts " - Navigating to #{uri.to_s}"
+            driver.navigate.to uri.to_s
+            STDERR.puts " - Taking screenshot"
+            driver.save_screenshot filename
+        rescue Selenium::WebDriver::Error::TimeoutError
+            STDERR.puts ' - Timeout'
+            next
+        rescue Selenium::WebDriver::Error::TimeOutError
+            STDERR.puts ' - Timeout'
+            next
+        ensure
+            begin
+                STDERR.puts " - Closing browser"
+                driver.quit
+            end
         end
     end
 end

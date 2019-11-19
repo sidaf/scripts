@@ -143,7 +143,7 @@
     path: /bsc_lan.php
   category: general
   matches:
-  - output: D-Link DIR-300, DIR-320, DIR-615 revD
+  - output: D-Link DIR-300 / DIR-320 / DIR-615 revD
     match: ''
 - probes:
   - method: HEAD
@@ -2143,7 +2143,7 @@
     path: /CSCOSSLC/config-auth
   category: security
   matches:
-  - output: Cisco ASA, firmware \1
+  - output: Cisco ASA firmware \1
     match: <version who="sg">([^<]+)</version>
 - probes:
   - method: GET
@@ -2311,9 +2311,22 @@
     path: /manager/html/upload
   - method: HEAD
     path: /manager/html
+  - method: HEAD
+    path: /host-manager/html
   category: management
   matches:
-  - output: Apache Tomcat
+  - output: Apache Tomcat Manager
+    match: ''
+- probes:
+  - method: HEAD
+    path: /examples/servlets/index.html
+  - method: HEAD
+    path: /examples/jsp/index.html
+  - method: HEAD
+    path: /examples/websocket/index.xhtml
+  category: management
+  matches:
+  - output: Apache Tomcat Example Files
     match: ''
 - probes:
   - method: HEAD
@@ -3394,7 +3407,7 @@
   - path: /cart/docs/
   category: cms
   matches:
-  - output: ZenCart, version \1
+  - output: ZenCart version \1
     match: .*">Changelog for v(%d-%..-) %(changed files%)</a>
 - probes:
   - path: /docs/CHANGELOG.html
@@ -3406,7 +3419,7 @@
   matches:
   - output: phpBB version slightly newer than \1
     match: Changes since (%d-%..-)</a>
-  - output: phpBB, version \1
+  - output: phpBB version \1
     match: <meta name="description" content="phpBB (%d-%..-) Changelog"
   - output: phpBB versioning \1
     match: Changes since (%d)
@@ -3417,7 +3430,7 @@
   matches:
   - output: Version \1
     match: 'Version (.-) '
-  - output: Interesting, a changelog.
+  - output: Changelog file
 - probes:
   - path: /readme.html
   - path: /pligg/readme.html
@@ -3430,7 +3443,7 @@
   - output: WordPress version \1
     match: |
       <br /> Version (.-)
-  - output: Interesting, a readme.
+  - output: Readme file
 - probes:
   - path: /
   - path: /forum/
@@ -3847,7 +3860,7 @@
     path: /cluster/cluster
   category: management
   matches:
-  - output: Hadoop YARN Resource Manager version \2, state "\1", Hadoop version \3
+  - output: Hadoop YARN Resource Manager version \2 state "\1" Hadoop version \3
     match: ResourceManager state:.-<td>%s*([^%s<]*).-ResourceManager version:.-<td>%s*([^%s<]*).-Hadoop
       version:.-<td>%s*([^%s<]*)
 - probes:
@@ -3855,7 +3868,7 @@
     path: /node
   category: info
   matches:
-  - output: Hadoop YARN Node Manager version \1, Hadoop version \2
+  - output: Hadoop YARN Node Manager version \1 Hadoop version \2
     match: Node Manager Version:.-<td>%s*([^%s<]*).-Hadoop Version:.-<td>%s*([^%s<]*)
 - probes:
   - method: HEAD
@@ -4090,7 +4103,7 @@
     match: 'StatusNet (.-) '
   - output: XODA \1
     match: 'XODA.*Changelog%s---------%s(%d.-):'
-  - output: Interesting, a readme.
+  - output: Readme file
 - probes:
   - method: GET
     path: /0/
@@ -5800,5 +5813,18 @@
   matches:
   - output: Sitecore.NET (CMS)
     match: ''
+- probes:
+  - method: GET
+    path: /admin/public/index.html
+  category: security
+  matches:
+  - output: Cisco Adaptive Security Device Manager (ASDM)
+    match: 'Cisco ASDM'
+- probes:
+  - method: GET
+    path: /global-protect/login.esp
+  category: security
+  matches:
+  - output: Palo Alto Networks GlobalProtect
+    match: 'GlobalProtect Portal'
 ...
-

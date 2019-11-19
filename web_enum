@@ -20,7 +20,8 @@ HTTP_404_SIGS = File.readlines(File.expand_path(File.dirname(__FILE__) + "/wordl
 MAX_CONCURRENCY = 50
 MAX_TIMEOUTS = 10
 MAX_ERRORS = 10
-STATUS_CODES = [200]
+STATUS_CODES = [200, 401]
+IGNORE_STATUS_CODES = [400, 403, 404, 405, 406, 407, 414, 415, 429, 500]
 
 # functions
 
@@ -172,8 +173,9 @@ def check(target, hostname, fingerprint, ecode, emesg, verbose)
             end
         end
 
-        next unless STATUS_CODES.include? response.code # is this line still needed with the line below in place!?
+        #next unless STATUS_CODES.include? response.code # is this line still needed with the line below in place!?
         next if ((response.code == ecode) or (emesg and response.response_body.index(emesg)))
+        next if IGNORE_STATUS_CODES.include? response.code
 
         # loop through matches
         matches.each do |match|
@@ -203,7 +205,8 @@ def check(target, hostname, fingerprint, ecode, emesg, verbose)
         # no matches found, move on to next probe
         next if output.nil?
 
-        puts "#{output} - #{url}"
+        #puts "#{output} - #{url}"
+        puts "#{output.gsub(/,/,"")},#{url},#{method},#{response.code},#{vhost}"
     end
 end
 
