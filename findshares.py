@@ -26,7 +26,8 @@ def list_shares(host, username, password, domain):
     try:
         smb = SMBConnection(host, host, sess_port=445, timeout=4)
         if is_ntlm(password):
-            smb.login_hash(username, password, domain=domain)
+            lmhash, nthash = password.split(':')
+            smb.login(username, '', domain=domain,lmhash=lmhash, nthash=nthash)
         else:
             smb.login(username, password, domain=domain)
     except Exception as e:
