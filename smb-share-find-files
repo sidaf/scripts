@@ -1,0 +1,173 @@
+#!/usr/bin/env python3
+
+import argparse
+import sys
+import queue
+import re
+from concurrent.futures import ThreadPoolExecutor as PoolExecutor
+from netaddr import *
+
+from impacket.dcerpc.v5 import samr, transport, srvs
+from impacket.dcerpc.v5.dtypes import NULL
+from impacket.smbconnection import *
+
+## FUNCTIONS
+
+def is_ntlm(password):
+    try:
+        if len(password.split(':')) == 2:
+            lm, ntlm = password.split(':')
+            if len(lm) == 32 and len(ntlm) == 32:
+                return True
+            else:
+                return False
+    except Exception as e:
+        return False
+
+def connect(host, path, username, password, domain, timeout, recurse, patterns):
+    try:
+        smb = SMBConnection(host, host, sess_port=445, timeout=timeout)
+        if is_ntlm(password):
+            lmhash, nthash = password.split(':')
+            smb.login(username, '', domain=domain,lmhash=lmhash, nthash=nthash)
+        else:
+            smb.login(username, password, domain=domain)
+    except Exception as e:
+        sys.stderr.write(f"[!] {host} : {e}\n")
+        return
+
+    seperators = path.count('\\')
+    if seperators > 0:
+        share, path = path.split('\\', 1)
+    else:
+        share, path = path, ''
+
+    list_directory(smb, host, share, path, recurse, patterns)
+
+    smb.logoff()
+
+def list_directory(smb, host, share, path, depth, patterns):
+    path = path.strip('\\')
+
+    try:
+        paths = smb.listPath(share, f"{path}\\*")
+
+        for p in paths:
+            name = p.get_longname().strip()
+            if name != '.' and name != '..':
+                for pattern in patterns:
+                    if re.search(pattern, name, re.IGNORECASE):
+                        nunc = f"\\\\{host}\\{share}\\{path}\\{name}"
+                        sys.stdout.write(f"{nunc}\n")
+                        sys.stdout.flush()
+
+        if depth == 0:
+            return
+
+        for p in paths:
+            if name != '.' and name != '..':
+                if p.is_directory():
+                    list_directory(smb, host, share, f"{path}\\{name}", (depth-1), patterns)
+
+    except Exception as e:
+        sys.stderr.write('[!] \\\\%s\\%s\\%s : %s\n' % (host, share, path, e))
+        return
+
+## MAIN
+
+# parse the arguments
+parser = argparse.ArgumentParser(description='Search for interesting files/folders on target hosts')
+parser.add_argument('-u','--user',help='SMB user to connect with', default='', required=False)
+parser.add_argument('-p','--password',help='SMB password to connect with', default='', required=False)
+parser.add_argument('-d','--domain',help='SMB domain to connect with', default='', required=False)
+parser.add_argument('-t','--threads',type=int,help='Number of threads (Default: 5)', default=5, required=False)
+parser.add_argument('-r','--recursive',type=int,help='Recursive folder depth (Default: 0)', default=0, required=False)
+parser.add_argument('-s','--search',help='Keyword to search for, i.e., *assword,secret', default='', required=False)
+parser.add_argument('-sf','--searchfile',help='File of keywords to search for', default='', required=False)
+parser.add_argument('--timeout',type=int,help='Connection timeout (Default: 5)', default=5, required=False)
+parser.add_argument('--users',action='store_true',help='Limit searching to the C:\\Users folder', required=False)
+parser.add_argument('--office',action='store_true',help='Include search for office documents', required=False)
+parser.add_argument('--sensitive',action='store_true',help='Include search for sensitive files', required=False)
+parser.add_argument('file',
+                    nargs='?',
+                    type=argparse.FileType('r'),
+                    action='store',
+                    help='File containing a list of UNC paths split by a newline, otherwise read from STDIN',
+                    metavar='FILE',
+                    default=sys.stdin)
+args = parser.parse_args()
+
+try:
+    uncs = [line.strip() for line in args.file if len(line.strip())>0 and line[0] is not '#']
+except KeyboardInterrupt:
+    exit()
+
+patterns = list()
+
+if args.searchfile != '':
+    try:
+        patterns = [line.strip() for line in args.searchfile if len(line.strip())>0 and line[0] is not '#']
+    except KeyboardInterrupt:
+        exit()
+
+if args.search != '':
+    searches = set()
+    if args.search.find(','):
+        instances = args.search.split(',')
+        for i in instances:
+            i = i.strip()
+            if len(i)>0:
+                searches.add(i)
+    else:
+        searches.add(args.search)
+
+    for search in searches:
+        patterns.append(search)
+
+if args.office:
+    patterns.append('.*\.doc(|x)$')
+    patterns.append('.*\.xls(|x)$')
+    patterns.append('.*\.ppt(|x)$')
+
+if args.sensitive:
+    patterns.append('.*password.*')
+    patterns.append('.*sensitive.*')
+    patterns.append('.*login.*')
+    patterns.append('.*secret.*')
+    patterns.append('.*creds.*')
+    patterns.append('.*credential.*')
+    patterns.append('.*\.config$')
+    patterns.append('.*\.kdb(|x)$')
+    patterns.append('.*unattend.*\.(xml|txt)')
+    patterns.append('^sysprep\..*')
+    patterns.append('.*\.key$')
+    patterns.append('.*\.crt$')
+    patterns.append('.*\.pcf$')
+    patterns.append('.*\.ica$')
+    patterns.append('.*vnc\.ini')
+    patterns.append('^winscp\.ini$')
+    patterns.append('^ws_ftp\.ini$')
+
+if not patterns:
+    patterns.append('.*')
+
+if args.users:
+    sys.stderr.write(f"[*] Note, the --users flag has been set, all supplied share names and paths will be ignored.\n")
+
+with PoolExecutor(args.threads) as pool:
+    hosts = set()
+    for unc in uncs:
+        try:
+            host, path = unc.strip('\\').split('\\', 1)
+            if args.users:
+                if host in hosts:
+                    continue
+                hosts.add(host)
+                path = 'C$\\Users'
+        except ValueError as e:
+            sys.stderr.write(f"[!] {unc} : No share name provided.\n")
+            continue
+
+        #connect(host, path, args.user, args.password, args.domain, args.timeout, args.recursive, patterns)
+        pool.submit(lambda p: connect(*p), [host, path, args.user, args.password, args.domain, args.timeout, args.recursive, patterns])
+

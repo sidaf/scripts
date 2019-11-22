@@ -48,6 +48,8 @@ def list_shares(host, username, password, domain, check_access):
         sys.stdout.write(f"\\\\{host}\\{share_name},{share_desc},{share_access}\n")
         sys.stdout.flush()
 
+    smb.logoff()
+
 ## MAIN
 
 # parse the arguments
