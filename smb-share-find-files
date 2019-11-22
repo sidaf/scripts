@@ -24,7 +24,7 @@ def is_ntlm(password):
     except Exception as e:
         return False
 
-def connect(host, path, username, password, domain, timeout, recurse, patterns, quiet):
+def connect(host, path, username, password, domain, timeout, recurse, patterns, quiet, out_files, out_folders):
     sys.stderr.write(f"[+] Started searching {unc}\n")
     try:
         smb = SMBConnection(host, host, sess_port=445, timeout=timeout)
@@ -43,12 +43,12 @@ def connect(host, path, username, password, domain, timeout, recurse, patterns, 
     else:
         share, path = path, ''
 
-    list_directory(smb, host, share, path, recurse, patterns, quiet)
+    list_directory(smb, host, share, path, recurse, patterns, quiet, out_files, out_folders)
 
     smb.logoff()
     sys.stderr.write(f"[+] Finished searching {unc}\n")
 
-def list_directory(smb, host, share, path, depth, patterns, quiet):
+def list_directory(smb, host, share, path, depth, patterns, quiet, out_files, out_folders):
     path = path.strip('\\')
 
     try:
@@ -59,9 +59,9 @@ def list_directory(smb, host, share, path, depth, patterns, quiet):
             if name != '.' and name != '..':
                 for pattern in patterns:
                     if re.search(pattern, name, re.IGNORECASE):
-                        nunc = f"\\\\{host}\\{share}\\{path}\\{name}"
-                        sys.stdout.write(f"{nunc}\n")
-                        sys.stdout.flush()
+                        if (not out_folders and not out_files) or (out_folders and out_files) or (p.is_directory() and (out_folders and not out_files)) or (not p.is_directory() and (not out_folders and out_files)):
+                            sys.stdout.write(f"\\\\{host}\\{share}\\{path}\\{name}\n")
+                            sys.stdout.flush()
 
         if depth == 0:
             return
@@ -70,11 +70,11 @@ def list_directory(smb, host, share, path, depth, patterns, quiet):
             name = p.get_longname().strip()
             if name != '.' and name != '..' and name != 'desktop.ini' and name != 'System Volume Information':
                 if p.is_directory():
-                    list_directory(smb, host, share, f"{path}\\{name}", (depth-1), patterns, quiet)
+                    list_directory(smb, host, share, f"{path}\\{name}", (depth-1), patterns, quiet, out_files, out_folders)
 
     except Exception as e:
         if not (quiet and e.find('STATUS_ACCESS_DENIED')):
-            sys.stderr.write('[!] \\\\%s\\%s\\%s : %s\n' % (host, share, path, e))
+            sys.stderr.write(f"[!] \\\\{host}\\{share}\\{path} : {e}\n")
         return
 
 ## MAIN
@@ -92,7 +92,9 @@ parser.add_argument('--timeout',type=int,help='Connection timeout (Default: 5)',
 parser.add_argument('--users',action='store_true',help='Limit searching to the C:\\Users folder', required=False)
 parser.add_argument('--office',action='store_true',help='Include search for office documents', required=False)
 parser.add_argument('--sensitive',action='store_true',help='Include search for sensitive files', required=False)
-parser.add_argument('--quiet',action='store_true',help='Don\'t print \'Access Denied\' messages when searching', required=False)
+parser.add_argument('--quiet',action='store_true',help='Don\'t print \'Access Denied\' error messages', required=False)
+parser.add_argument('--folders',action='store_true',help='Only output folders when searching', required=False)
+parser.add_argument('--files',action='store_true',help='Only output files when searching', required=False)
 parser.add_argument('file',
                     nargs='?',
                     type=argparse.FileType('r'),
@@ -173,6 +175,6 @@ with PoolExecutor(args.threads) as pool:
             sys.stderr.write(f"[!] {unc} : No share name provided.\n")
             continue
 
-        #connect(host, path, args.user, args.password, args.domain, args.timeout, args.recursive, patterns, args.quiet)
-        pool.submit(lambda p: connect(*p), [host, path, args.user, args.password, args.domain, args.timeout, args.recursive, patterns, args.quiet])
+        connect(host, path, args.user, args.password, args.domain, args.timeout, args.recursive, patterns, args.quiet, args.files, args.folders)
+        #pool.submit(lambda p: connect(*p), [host, path, args.user, args.password, args.domain, args.timeout, args.recursive, patterns, args.quiet, args.files, args.folders])
 
