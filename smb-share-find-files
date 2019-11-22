@@ -65,7 +65,7 @@ def list_directory(smb, host, share, path, depth, patterns):
             return
 
         for p in paths:
-            if name != '.' and name != '..':
+            if name != '.' and name != '..' and name != 'desktop.ini':
                 if p.is_directory():
                     list_directory(smb, host, share, f"{path}\\{name}", (depth-1), patterns)
 
