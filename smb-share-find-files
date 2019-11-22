@@ -24,7 +24,7 @@ def is_ntlm(password):
     except Exception as e:
         return False
 
-def connect(host, path, username, password, domain, timeout, recurse, patterns):
+def connect(host, path, username, password, domain, timeout, recurse, patterns, quiet):
     sys.stderr.write(f"[+] Started searching {unc}\n")
     try:
         smb = SMBConnection(host, host, sess_port=445, timeout=timeout)
@@ -43,12 +43,12 @@ def connect(host, path, username, password, domain, timeout, recurse, patterns):
     else:
         share, path = path, ''
 
-    list_directory(smb, host, share, path, recurse, patterns)
+    list_directory(smb, host, share, path, recurse, patterns, quiet)
 
     smb.logoff()
     sys.stderr.write(f"[+] Finished searching {unc}\n")
 
-def list_directory(smb, host, share, path, depth, patterns):
+def list_directory(smb, host, share, path, depth, patterns, quiet):
     path = path.strip('\\')
 
     try:
@@ -70,10 +70,11 @@ def list_directory(smb, host, share, path, depth, patterns):
             name = p.get_longname().strip()
             if name != '.' and name != '..' and name != 'desktop.ini' and name != 'System Volume Information':
                 if p.is_directory():
-                    list_directory(smb, host, share, f"{path}\\{name}", (depth-1), patterns)
+                    list_directory(smb, host, share, f"{path}\\{name}", (depth-1), patterns, quiet)
 
     except Exception as e:
-        sys.stderr.write('[!] \\\\%s\\%s\\%s : %s\n' % (host, share, path, e))
+        if not (quiet and e.find('STATUS_ACCESS_DENIED')):
+            sys.stderr.write('[!] \\\\%s\\%s\\%s : %s\n' % (host, share, path, e))
         return
 
 ## MAIN
@@ -91,6 +92,7 @@ parser.add_argument('--timeout',type=int,help='Connection timeout (Default: 5)',
 parser.add_argument('--users',action='store_true',help='Limit searching to the C:\\Users folder', required=False)
 parser.add_argument('--office',action='store_true',help='Include search for office documents', required=False)
 parser.add_argument('--sensitive',action='store_true',help='Include search for sensitive files', required=False)
+parser.add_argument('--quiet',action='store_true',help='Don\'t print \'Access Denied\' messages when searching', required=False)
 parser.add_argument('file',
                     nargs='?',
                     type=argparse.FileType('r'),
@@ -171,6 +173,6 @@ with PoolExecutor(args.threads) as pool:
             sys.stderr.write(f"[!] {unc} : No share name provided.\n")
             continue
 
-        #connect(host, path, args.user, args.password, args.domain, args.timeout, args.recursive, patterns)
-        pool.submit(lambda p: connect(*p), [host, path, args.user, args.password, args.domain, args.timeout, args.recursive, patterns])
+        #connect(host, path, args.user, args.password, args.domain, args.timeout, args.recursive, patterns, args.quiet)
+        pool.submit(lambda p: connect(*p), [host, path, args.user, args.password, args.domain, args.timeout, args.recursive, patterns, args.quiet])
 
