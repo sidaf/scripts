@@ -25,6 +25,7 @@ def is_ntlm(password):
         return False
 
 def connect(host, path, username, password, domain, timeout, recurse, patterns):
+    sys.stderr.write(f"[+] Started searching {unc}\n")
     try:
         smb = SMBConnection(host, host, sess_port=445, timeout=timeout)
         if is_ntlm(password):
@@ -45,6 +46,7 @@ def connect(host, path, username, password, domain, timeout, recurse, patterns):
     list_directory(smb, host, share, path, recurse, patterns)
 
     smb.logoff()
+    sys.stderr.write(f"[+] Finished searching {unc}\n")
 
 def list_directory(smb, host, share, path, depth, patterns):
     path = path.strip('\\')
