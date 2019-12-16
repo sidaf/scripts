@@ -12,6 +12,7 @@ import dns
 import dns.resolver
 import dns.reversename
 import time
+import json
 from multiprocessing import Pool
 #from multiprocessing.dummy import Pool  # utilise threads rather than subprocesses
 import signal
@@ -94,9 +95,6 @@ if __name__ == '__main__':
     except KeyError:
         sys.stderr.write("Error: DNSDB environment variable not set, unable to obtain server url, please set accordingly.\n")
         exit(1)
-
-    global nameserver
-    nameserver = args.nameserver
 
     # compile filter (if supplied)
     global addresses
