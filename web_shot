@@ -42,14 +42,14 @@ if not File.exists?(input)
     exit 1
 end
 
+vhosts = Hash.new
 unless hostnames.nil?
-    if not File.exists?(input)
-        puts "#{input} does not exist!"
+    if not File.exists?(hostnames)
+        puts "#{hostnames} does not exist!"
         exit 1
     end
 
     # Import IP address and virtual host pairs
-    vhosts = Hash.new
     CSV.foreach(hostnames, { :skip_blanks => true }) do |row|
         ip = row[0].strip
         fqdn = row[1]
@@ -85,6 +85,7 @@ client.read_timeout = TIMEOUT + 5
 URLS.each do |url|
     host = URI.parse(url).host
     port = URI.parse(url).port
+    path = URI.parse(url).path
     Dir.mkdir(host) unless Dir.exist?(host)
     Dir.mkdir("#{host}/#{port}") unless Dir.exist?("#{host}/#{port}")
 
@@ -95,7 +96,11 @@ URLS.each do |url|
     hosts.each do |vhost|
         uri = URI(url)
         uri.host = vhost
-        filename = "#{host}/#{port}/#{vhost}.png"
+        if path.strip.empty? or path.strip == '/'
+            filename = "#{host}/#{port}/#{vhost}.png"
+        else
+            filename = "#{host}/#{port}/#{vhost}#{path.gsub('/', '_')}.png"
+        end
         begin
             STDERR.puts "Starting browser"
             driver = Selenium::WebDriver.for :chrome, options: options, http_client: client
