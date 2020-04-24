@@ -1,0 +1,96 @@
+#!/usr/bin/env python3.7
+
+###########
+# IMPORTS #
+###########
+
+import os
+import sys
+import re
+import argparse
+import asyncio
+import aiohttp
+from aiohttp import ClientSession, TCPConnector
+from pypeln.task import TaskPool
+
+####################
+# GLOBAL VARIABLES #
+####################
+
+global key
+
+#############
+# FUNCTIONS #
+#############
+
+async def fetch(url, address, session):
+    try:
+        async with session.get(url + address) as response:
+            if response.status == 200:
+                html = await response.text()
+                san = re.search('<br>Subject Alternative Names :(.*?)<br>', html)
+                cn = re.search('<br>Common Name :(.*?)<br>', html)
+
+                hostnames = list()
+                if san:
+                    hostnames.append(san.group(1))
+                if cn:
+                    hostnames.append(cn.group(1))
+
+                for hostname in hostnames:
+                    sys.stdout.write('%s,%s\n' % (address, hostname))
+                    sys.stdout.flush()
+    except Exception as e:
+            sys.stderr.write(f"{url} =>  Unexpected exception: {e}\n")
+
+async def run(addresses):
+    url = "https://www.ssltools.com/certificate_lookup/"
+    async with ClientSession(connector=TCPConnector(limit=None)) as session, TaskPool(2) as tasks:
+        for address in addresses:
+            await tasks.put(fetch(url, address, session))
+
+########
+# MAIN #
+########
+
+if __name__ == '__main__':
+    desc = 'Obtain observed Certificate SANs and CNs from SslTools.com for the supplied IP addresses and output results in CSV format.'
+
+    parser = argparse.ArgumentParser(description=desc)
+    parser.add_argument('file',
+                        nargs='?',
+                        type=argparse.FileType('r'),
+                        action='store',
+                        help='file containing a list of IP addresses split by a newline, otherwise read from STDIN',
+                        metavar='FILE',
+                        default=sys.stdin)
+    args = parser.parse_args()
+
+    # Check for DNSDB env
+    try:
+        key = os.environ['VIRUSTOTAL_KEY']
+        if not key:
+            sys.stderr.write("Error: VIRUSTOTAL_KEY environment variable is empty, unable to obtain server url, please set accordingly.\n")
+            exit(1)
+    except KeyError:
+        sys.stderr.write("Error: VIRUSTOTAL_KEY environment variable not set, unable to obtain server url, please set accordingly.\n")
+        exit(1)
+
+    try:
+        addresses = [line.strip() for line in args.file if len(line.strip())>0 and line[0] is not '#']
+    except KeyboardInterrupt:
+        exit()
+
+    # remove duplicates and sort
+    addresses = sorted(set(addresses))
+
+    loop = asyncio.get_event_loop()
+
+    try:
+        loop.run_until_complete(run(addresses))
+    except KeyboardInterrupt:
+        sys.stderr.write("\nCaught keyboard interrupt, cleaning up...\n")
+        asyncio.gather(*asyncio.Task.all_tasks()).cancel()
+        loop.stop()
+    finally:
+        loop.close()

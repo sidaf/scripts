@@ -1,0 +1,108 @@
+#!/usr/bin/env python3.7
+
+###########
+# IMPORTS #
+###########
+
+import os
+import sys
+import argparse
+import asyncio
+import aiohttp
+import json
+import io
+from aiohttp import ClientSession, TCPConnector
+from pypeln.task import TaskPool
+import base64
+
+####################
+# GLOBAL VARIABLES #
+####################
+
+global uid
+global secret
+
+#############
+# FUNCTIONS #
+#############
+
+async def fetch(url, address, session):
+    try:
+        auth = aiohttp.BasicAuth(uid, secret)
+        headers = {'Accept': 'application/json'}
+        async with session.get(url + address, auth=auth, headers=headers) as response:
+            if response.status == 200:
+                data = io.StringIO(await response.text())
+                for line in data:
+                    jsonobj = json.loads(line)
+                    try:
+                        host = str(jsonobj['rrname'])
+                        sys.stdout.write('%s,%s\n' % (address, host))
+                        sys.stdout.flush()
+                    except KeyError as e:
+                        sys.stderr.write('%s => KeyError: %s [%s]\n' % (address, e, line))
+            else:
+                sys.stderr.write(f"{url + address} =>  Unexpected response status: {response.status}\n")
+    except Exception as e:
+            sys.stderr.write(f"{url + address} =>  Unexpected exception: {e}\n")
+
+async def run(addresses):
+    url = "https://www.circl.lu/pdns/query/"
+    async with ClientSession(connector=TCPConnector(limit=None)) as session, TaskPool(2) as tasks:
+        for address in addresses:
+            await tasks.put(fetch(url, address, session))
+
+########
+# MAIN #
+########
+
+if __name__ == '__main__':
+    desc = 'Obtain observed hostnames from Circ.lu for the supplied IP addresses and output results in CSV format.'
+
+    parser = argparse.ArgumentParser(description=desc)
+    parser.add_argument('file',
+                        nargs='?',
+                        type=argparse.FileType('r'),
+                        action='store',
+                        help='file containing a list of IP addresses split by a newline, otherwise read from STDIN',
+                        metavar='FILE',
+                        default=sys.stdin)
+    args = parser.parse_args()
+
+    # Check for CIRCL_* env
+    try:
+        uid = os.environ['CIRCL_ID']
+        if not uid:
+            sys.stderr.write("Error: CIRCL_ID environment variable is empty, unable to obtain server url, please set accordingly.\n")
+            exit(1)
+    except KeyError:
+        sys.stderr.write("Error: CIRCL_ID environment variable not set, unable to obtain server url, please set accordingly.\n")
+        exit(1)
+
+    try:
+        secret = os.environ['CIRCL_SECRET']
+        if not secret:
+            sys.stderr.write("Error: CIRCL_SECRET environment variable is empty, unable to obtain server url, please set accordingly.\n")
+            exit(1)
+    except KeyError:
+        sys.stderr.write("Error: CIRCL_SECRET environment variable not set, unable to obtain server url, please set accordingly.\n")
+        exit(1)
+
+    try:
+        addresses = [line.strip() for line in args.file if len(line.strip())>0 and line[0] is not '#']
+    except KeyboardInterrupt:
+        exit()
+
+    # remove duplicates and sort
+    addresses = sorted(set(addresses))
+
+    loop = asyncio.get_event_loop()
+
+    try:
+        loop.run_until_complete(run(addresses))
+    except KeyboardInterrupt:
+        sys.stderr.write("\nCaught keyboard interrupt, cleaning up...\n")
+        asyncio.gather(*asyncio.Task.all_tasks()).cancel()
+        loop.stop()
+    finally:
+        loop.close()

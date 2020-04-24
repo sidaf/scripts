@@ -1,0 +1,94 @@
+#!/usr/bin/env python3.7
+
+###########
+# IMPORTS #
+###########
+
+import os
+import sys
+import argparse
+import asyncio
+import aiohttp
+from aiohttp import ClientSession, TCPConnector
+from pypeln.task import TaskPool
+
+####################
+# GLOBAL VARIABLES #
+####################
+
+global key
+
+#############
+# FUNCTIONS #
+#############
+
+async def fetch(url, address, session):
+    try:
+        #params = {'ips': address, 'key': key}
+        #async with session.get(url, params=params) as response:
+        params = {'key': key}
+        async with session.get(url + address, params=params) as response:
+            if response.status == 200:
+                json = await response.json()
+                if json and 'hostnames' in json.keys():
+                    hostnames = json.get('hostnames')
+                    for hostname in hostnames:
+                        sys.stdout.write('%s,%s\n' % (address, hostname))
+                        sys.stdout.flush()
+            else:
+                sys.stderr.write(f"{url + address} =>  Unexpected response status: {response.status}\n")
+    except Exception as e:
+            sys.stderr.write(f"{url + address} =>  Unexpected exception: {e}\n")
+
+async def run(addresses):
+    #url = "https://api.shodan.io/dns/reverse"
+    url = "https://api.shodan.io/shodan/host/"
+    async with ClientSession(connector=TCPConnector(limit=None)) as session, TaskPool(2) as tasks:
+        for address in addresses:
+            await tasks.put(fetch(url, address, session))
+
+########
+# MAIN #
+########
+
+if __name__ == '__main__':
+    desc = 'Obtain observed hostnames from Shodan for the supplied IP addresses and output results in CSV format.'
+
+    parser = argparse.ArgumentParser(description=desc)
+    parser.add_argument('file',
+                        nargs='?',
+                        type=argparse.FileType('r'),
+                        action='store',
+                        help='file containing a list of IP addresses split by a newline, otherwise read from STDIN',
+                        metavar='FILE',
+                        default=sys.stdin)
+    args = parser.parse_args()
+
+    # Check for SHODAN_KEY env
+    try:
+        key = os.environ['SHODAN_KEY']
+        if not key:
+            sys.stderr.write("Error: SHODAN_KEY environment variable is empty, unable to obtain server url, please set accordingly.\n")
+            exit(1)
+    except KeyError:
+        sys.stderr.write("Error: SHODAN_KEY environment variable not set, unable to obtain server url, please set accordingly.\n")
+        exit(1)
+
+    try:
+        addresses = [line.strip() for line in args.file if len(line.strip())>0 and line[0] is not '#']
+    except KeyboardInterrupt:
+        exit()
+
+    # remove duplicates and sort
+    addresses = sorted(set(addresses))
+
+    loop = asyncio.get_event_loop()
+
+    try:
+        loop.run_until_complete(run(addresses))
+    except KeyboardInterrupt:
+        sys.stderr.write("\nCaught keyboard interrupt, cleaning up...\n")
+        asyncio.gather(*asyncio.Task.all_tasks()).cancel()
+        loop.stop()
+    finally:
+        loop.close()
