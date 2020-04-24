@@ -1,0 +1,80 @@
+#!/usr/bin/env python3.7
+
+###########
+# IMPORTS #
+###########
+
+import os
+import sys
+import argparse
+
+
+
+
+########
+# MAIN #
+########
+
+if __name__ == '__main__':
+    desc = 'Extract domains from the supplied FQDNs and output a list of results.'
+
+    parser = argparse.ArgumentParser(description=desc)
+    parser.add_argument('file',
+                        nargs='?',
+                        type=argparse.FileType('r'),
+                        action='store',
+                        help='file containing a list of IP addresses split by a newline, otherwise read from STDIN',
+                        metavar='FILE',
+                        default=sys.stdin)
+    parser.add_argument('-s', '--suffixes',
+                        nargs='?',
+                        type=argparse.FileType('r'),
+                        action='store',
+                        help='a list of TLDs to use as suffixes to aid identification (default: %s/wordlists/dns/tlds.txt)' % os.path.dirname(os.path.realpath(__file__)),
+                        metavar='FILE',
+                        default="%s/wordlists/dns/tlds.txt" % os.path.dirname(os.path.realpath(__file__)))
+    parser.add_argument('-d', '--depth',
+                    type=int,
+                    action='store',
+                    help='only list domains up to a maximum depth (default: unlimited)',
+                    metavar='INT',
+                    default=0)
+    args = parser.parse_args()
+
+    try:
+        hosts = [line.strip() for line in args.file if len(line.strip())>0 and line[0] is not '#']
+    except KeyboardInterrupt:
+        exit()
+    
+    try:
+        suffixes = [line.strip() for line in args.suffixes if len(line.strip())>0 and line[0] is not '#']
+    except KeyboardInterrupt:
+        exit()
+
+    domains = []
+
+    for host in hosts:
+        elements = host.split('.')
+        # recursively walk through the elements
+        # extracting all possible (sub)domains
+        while len(elements) >= 2:
+            # account for domains stored as hosts
+            if len(elements) == 2:
+                domain = '.'.join(elements)
+            else:
+                # drop the host element
+                domain = '.'.join(elements[1:])
+            if domain not in domains + suffixes:
+                    domains.append(domain)
+            del elements[0]
+
+    for domain in domains:
+        if args.depth < 1:
+            print(domain)
+        else:
+            for suffix in sorted(suffixes, key=lambda x: x.count('.'), reverse=True):
+                if domain.lower().endswith('.' + suffix.lower()):
+                    sub = domain[:-(len(suffix) + 1)]
+                    if sub.count('.') < args.depth:
+                        print(domain)
+                    break

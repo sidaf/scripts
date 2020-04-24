@@ -1,4 +1,4 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python3.7
 
 ###########
 # IMPORTS #
@@ -6,58 +6,44 @@
 
 import sys
 import argparse
-import socket
-import dns
-import dns.resolver
-import dns.reversename
-from multiprocessing import Pool
-#from multiprocessing.dummy import Pool  # utilise threads rather than subprocesses
-import signal
-
-
-####################
-# GLOBAL VARIABLES #
-####################
-
-global nameserver
-
+import asyncio
+import aiodns
+from pypeln.task import TaskPool
 
 #############
 # FUNCTIONS #
 #############
 
-def reverse_resolve(address):
-    max_attempts = 3
-    resolver = dns.resolver.get_default_resolver()
-    resolver.nameservers = [nameserver]
-    resolver.lifetime = 3
-    attempt = 0
-    while attempt < max_attempts:
+async def fetch(address, resolver):
+    try:
+        result = await resolver.gethostbyaddr(address)
+        for host in result.aliases:
+            sys.stdout.write('%s,%s\n' % (address, host))
+            sys.stdout.flush()
+    except Exception as e:
         try:
-            addr = dns.reversename.from_address(address)
-            hosts = resolver.query(addr, 'PTR')
-        except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer):
-            #sys.stderr.write('%s => No record found.\n' % (address))
-            pass
-        except dns.resolver.Timeout:
-            attempt += 1
-            if attempt == max_attempts:
-                sys.stderr.write('%s => Request timed out.\n' % (address))
-            continue
-        except (dns.resolver.NoNameservers):
-            sys.stderr.write('%s => Invalid nameserver.\n' % (address))
+            err_number = e.args[0]
+            err_text = e.args[1]
+        except IndexError:
+            sys.stderr.write(f"{address} => Couldn't parse exception: {e}\n")
         else:
-            for host in hosts:
-                host = str(host)[:-1] # slice the trailing dot
-                sys.stdout.write('%s,%s\n' % (address, host))
-                sys.stdout.flush()
-        # break out of the loop
-        attempt = max_attempts
+            if err_number == 4:
+                #sys.stderr.write(f"{address} => No record found.\n")
+                pass
+            elif err_number == 12:
+                # Timeout from DNS server
+                sys.stderr.write(f"{address} => Request timed out.\n")
+            elif err_number == 1:
+                # Server answered with no data
+                pass
+            else:
+                sys.stderr.write(f"{address} =>  Unexpected exception: {e}\n")
 
-
-def initializer():
-    """Ignore CTRL+C in the worker process."""
-    signal.signal(signal.SIGINT, signal.SIG_IGN)
+async def run(loop, limit, addresses):
+    resolver = aiodns.DNSResolver(loop=loop, rotate=True)
+    async with TaskPool(limit) as tasks:
+        for address in addresses:
+            await tasks.put(fetch(address, resolver))
 
 
 ########
@@ -68,11 +54,13 @@ if __name__ == '__main__':
     desc = 'Perform reverse DNS lookup on supplied IP addresses and output results in CSV format.'
 
     parser = argparse.ArgumentParser(description=desc)
-    parser.add_argument('-n', '--nameserver',
+    parser.add_argument('-n', '--nameservers',
+                        nargs='?',
+                        type=argparse.FileType('r'),
                         action='store',
-                        help='nameserver to use for lookups (default: 8.8.8.8)',
-                        metavar='SERVER',
-                        default='8.8.8.8')
+                        help='file containing a list of nameservers split by a newline, otherwise use system resolver',
+                        metavar='FILE',
+                        default=None)
     parser.add_argument('file',
                         nargs='?',
                         type=argparse.FileType('r'),
@@ -80,29 +68,35 @@ if __name__ == '__main__':
                         help='file containing a list of IP addresses split by a newline, otherwise read from STDIN',
                         metavar='FILE',
                         default=sys.stdin)
+    parser.add_argument('-l', '--limit',
+                        type=int,
+                        action='store',
+                        help='maximum number of queries to run asynchronosly (default: 100)',
+                        metavar='INT',
+                        default='100')
     args = parser.parse_args()
-
-    global nameserver
-    nameserver = args.nameserver
 
     try:
         addresses = [line.strip() for line in args.file if len(line.strip())>0 and line[0] is not '#']
     except KeyboardInterrupt:
         exit()
+    
+    # remove duplicates and sort results
+    addresses = sorted(set(addresses))
 
-    # remove duplicates
-    addresses = list(set(addresses))
+    if args.nameservers:
+        try:
+            nameservers = [line.strip() for line in args.nameservers if len(line.strip())>0 and line[0] is not '#']
+        except KeyboardInterrupt:
+            exit()
 
-    # sort
-    addresses = sorted(addresses, key=lambda item: socket.inet_aton(item))
+    loop = asyncio.get_event_loop()
 
-    # https://www.binpress.com/tutorial/simple-python-parallelism/121
-    pool = Pool(processes=10, initializer=initializer)
     try:
-        pool.map(reverse_resolve, addresses)
-        pool.close()
-        pool.join()
+        loop.run_until_complete(run(loop, args.limit, addresses))
     except KeyboardInterrupt:
-        pool.terminate()
-        pool.join()
-
+        sys.stderr.write("\nCaught keyboard interrupt, cleaning up...\n")
+        asyncio.gather(*asyncio.Task.all_tasks()).cancel()
+        loop.stop()
+    finally:
+        loop.close()
