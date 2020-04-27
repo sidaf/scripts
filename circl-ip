@@ -48,7 +48,7 @@ async def fetch(url, address, session):
 
 async def run(addresses):
     url = "https://www.circl.lu/pdns/query/"
-    async with ClientSession(connector=TCPConnector(limit=None)) as session, TaskPool(2) as tasks:
+    async with ClientSession(connector=TCPConnector(limit=None)) as session, TaskPool(1) as tasks:
         for address in addresses:
             await tasks.put(fetch(url, address, session))
 
