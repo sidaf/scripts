@@ -41,10 +41,16 @@ async def fetch(url, address, session):
                         sys.stdout.flush()
                     except KeyError as e:
                         sys.stderr.write('%s => KeyError: %s [%s]\n' % (address, e, line))
+            elif response.status == 401:
+                sys.stderr.write(f"{url + address} =>  Authentication failed: is authentication correct?\n")
+            elif response.status == 403:
+                sys.stderr.write(f"{url + address} =>  Not authorized to access resource\n")
+            elif response.status == 429:
+                sys.stderr.write(f"{url + address} =>  Quota exhausted\n")
             else:
-                sys.stderr.write(f"{url + address} =>  Unexpected response status: {response.status}\n")
+                sys.stderr.write(f"{url + address} =>  Unexpected response, status {response.status}\n")
     except Exception as e:
-            sys.stderr.write(f"{url + address} =>  Unexpected exception: {e}\n")
+            sys.stderr.write(f"{url + address} =>  Unexpected exception, {e}\n")
 
 async def run(addresses):
     url = "https://www.circl.lu/pdns/query/"
