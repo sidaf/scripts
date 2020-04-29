@@ -1,0 +1,144 @@
+#!/usr/bin/env python3.7
+
+#
+# Orginal: https://labs.portcullis.co.uk/tools/whois-like-a-boss/
+#
+
+###########
+# IMPORTS #
+###########
+
+import sys
+import os
+import subprocess
+import re
+import argparse
+from ipaddress import IPv4Address, summarize_address_range
+
+
+####################
+# GLOBAL VARIABLES #
+####################
+
+global cache
+cache = dict()
+
+
+#############
+# FUNCTIONS #
+#############
+
+
+def whois(address):
+    p = subprocess.Popen(['whois', address], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    response = p.communicate()[0].decode()
+
+    if "ARIN WHOIS" in response:
+        mark = "ARIN WHOIS"
+        source = "ARIN"
+        nrange = "NetRange:"
+        nname = "NetName:"
+        owner = "OrgName:"
+    elif "RIPE Database" in response:
+        mark = "RIPE Database"
+        source = "RIPE"
+        nrange = "inetnum:"
+        nname = "netname:"
+        owner = "address:"
+    elif "whois.apnic.net" in response:
+        mark = "whois.apnic.net"
+        source = "APNIC"
+        nrange = "inetnum:"
+        nname = "netname:"
+        owner = "org-name:"
+    else:
+        sys.stderr.write(f"{address} => whois response cannot be parsed...is the WHOIS database supported!?\n")
+        return
+    
+    process = False
+    result = list()
+
+    for line in response.split("\n"):
+        if mark in line:
+            process = True
+
+        if not process:
+            continue
+
+        if nrange in line: 
+            result.append({ 'source': source })
+            if 'range' not in result[len(result) - 1]:
+                result[len(result) - 1]['range'] = line.split(":")[1].strip()
+                
+        if owner in line:
+            if 'owner' not in result[len(result) - 1]:
+                result[len(result) - 1]['owner'] = line.split(":")[1].strip()
+        
+        if nname in line:
+            if 'netname' not in result[len(result) - 1]:
+                result[len(result) - 1]['netname'] = line.split(":")[1].strip()
+
+    return result
+
+########
+# MAIN #
+########
+
+if __name__ == '__main__':
+    desc = 'Perform a whois lookup on a provided IP address(es) and return network range memebrship and owner information.'
+
+    parser = argparse.ArgumentParser(description=desc)
+    parser.add_argument('file',
+                        nargs='?',
+                        type=argparse.FileType('r'),
+                        action='store',
+                        help='file containing a list of IP addresses split by a newline, otherwise read from STDIN',
+                        metavar='FILE',
+                        default=sys.stdin)
+    args = parser.parse_args()
+
+    try:
+        addresses = [line.strip() for line in args.file if len(line.strip())>0 and line[0] is not '#']
+    except KeyboardInterrupt:
+        exit()
+
+    results = dict()
+    
+    for address in addresses:
+        result = None
+
+        # Check cache first
+        ip_address = IPv4Address(address)
+        for ip_network in cache.keys():
+            if ip_address in ip_network:
+                result = cache[ip_network]
+                break
+
+        # Not in cache, query whois
+        if not result:
+            data = whois(address)
+            if data:
+                result = data[-1]
+                first = IPv4Address(result['range'].split('-')[0].strip())
+                last = IPv4Address(result['range'].split('-')[1].strip())
+                networks = list(summarize_address_range(first, last))
+                if len(networks) > 1:
+                    sys.stderr.write(f"{address} => ohoh, network range spans more than one network object, fixme!\n")
+                    continue
+                cache[networks[0]] = result
+            else:
+                sys.stderr.write(f"{address} => could not get result\n")
+                continue
+        
+        # Add/increment count
+        if result['netname'] in results:
+            results[result['netname']]['count'] += 1
+        else:
+            results[result['netname']] = result
+            results[result['netname']]['count'] = 1
+
+
+    for result in results.values():
+        print(f"{result['source']}: {result['netname']} - {result['owner']}")
+        sys.stdout.write(f"\t{result['range']}\t- {result['count']} IP ")
+        print('addresses') if result['count'] > 1 else print('address')

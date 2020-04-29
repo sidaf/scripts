@@ -1,0 +1,34 @@
+#!/usr/bin/env python3.7
+
+import os
+import sys
+import argparse
+
+if __name__ == '__main__':
+    desc = 'Generate wordlists for DNS brute forcing.'
+
+    parser = argparse.ArgumentParser(description=desc)
+    parser.add_argument('-w', '--wordlist',
+                        nargs='?',
+                        type=argparse.FileType('r'),
+                        action='store',
+                        help='a list of words to use for brute force attack (default: %s/wordlists/dns/hostnames.txt)' % os.path.   dirname(os.path.realpath(__file__)),
+                        metavar='FILE',
+                        default="%s/wordlists/dns/hostnames.txt" % os.path.dirname(os.path.realpath(__file__)))
+    parser.add_argument('file',
+                        nargs='?',
+                        type=argparse.FileType('r'),
+                        action='store',
+                        help='file containing a list of hostnames split by a newline, otherwise read from STDIN',
+                        metavar='FILE',
+                        default=sys.stdin)
+    args = parser.parse_args()
+
+    wordlist = [line.strip().lower() for line in args.wordlist if len(line)>0 and line[0] is not '#']
+    domains = [line.strip().lower() for line in args.file if len(line)>0 and line[0] is not '#']
+
+    for domain in domains:
+        for word in wordlist:
+            if not word.strip(): 
+                continue
+            print('{}.{}'.format(word.strip(), domain.strip()))
