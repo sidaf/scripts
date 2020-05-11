@@ -1,0 +1,48 @@
+#!/usr/bin/env python3.7
+
+###########
+# IMPORTS #
+###########
+
+import argparse
+import sys
+import geoip2.database
+
+########
+# MAIN #
+########
+
+if __name__ == '__main__':
+    desc = 'Perform a lookup via GeoLite2 on a provided IP address(es) and return country of origin.'
+
+    parser = argparse.ArgumentParser(description=desc)
+    parser.add_argument('file',
+                        nargs='?',
+                        type=argparse.FileType('r'),
+                        action='store',
+                        help='file containing a list of IP addresses split by a newline, otherwise read from STDIN',
+                        metavar='FILE',
+                        default=sys.stdin)
+    parser.add_argument('-g', '--geolite',
+                        action='store',
+                        help='path to MaxMind\'s GeoLite2 Country database file, obtainable from https://dev.maxmind.com/geoip/geoip2/geolite2/',
+                        metavar='DB',
+                        required=True)
+    args = parser.parse_args()
+
+    reader = geoip2.database.Reader(args.geolite)
+
+    try:
+        addresses = [line.strip() for line in args.file if len(line.strip())>0 and line[0] is not '#']
+    except KeyboardInterrupt:
+        exit()
+
+    for address in addresses:
+        try:
+            response = reader.country(address)
+            print(f"{address},{response.country.name},{response.country.iso_code}")
+        except Exception as e:
+            sys.stderr.write(f"[-] {address}: {e}\n")
+            sys.stderr.flush()
+    
+    reader.close()
