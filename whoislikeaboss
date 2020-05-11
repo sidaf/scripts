@@ -53,6 +53,7 @@ def whois(address):
         owner = "org-name:"
     else:
         sys.stderr.write(f"{address} => whois response cannot be parsed...is the WHOIS database supported!?\n")
+        sys.stderr.flush()
         return
     
     process = False
@@ -135,9 +136,9 @@ if __name__ == '__main__':
                 first = IPv4Address(result['range'].split('-')[0].strip())
                 last = IPv4Address(result['range'].split('-')[1].strip())
                 networks = list(summarize_address_range(first, last))
-                if len(networks) > 1:
-                    sys.stderr.write(f"{address} => ohoh, network range spans more than one network object, fixme!\n")
-                    continue
+                #if len(networks) > 1:
+                #    sys.stderr.write(f"{address} => ohoh, network range spans more than one network object, fixme!\n")
+                #    continue
                 cache[networks[0]] = result
             else:
                 sys.stderr.write(f"{address} => could not get result\n")
