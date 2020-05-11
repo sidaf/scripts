@@ -1,0 +1,100 @@
+#!/usr/bin/env python3.7
+
+###########
+# IMPORTS #
+###########
+
+import argparse
+import sys
+import os
+import re
+import subprocess
+import shlex
+import nmap
+import socket
+
+#############
+# FUNCTIONS #
+#############
+
+def run_nmap(targets):
+    command_line = f"nmap -oX - -sL -n {' '.join(targets)}"
+    output = str()
+    stderr = str()
+    
+    proc = subprocess.Popen(
+                    shlex.split(command_line),
+                    bufsize=100000,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE
+                )
+
+    try:
+        while proc.poll() is None:
+            for line in iter(proc.stdout.readline, b''):
+                output += line.decode('utf-8')
+    except KeyboardInterrupt:
+        sys.stderr.write("\nCaught Ctrl-C, exiting...")
+        sys.stderr.flush()
+    finally:
+        proc.terminate()
+        try:
+            proc.wait(timeout=0.5)
+        except subprocess.TimeoutExpired:
+            sys.stderr.write('Nmap did not terminate, please kill manually')
+            sys.stderr.flush()
+
+        stderr = proc.stderr.read().decode('utf-8')
+        warnings = list()
+        errors = list()
+        if len(stderr) > 0:
+            regex_warning = re.compile('^Warning: .*', re.IGNORECASE)
+            for line in stderr.split(os.linesep):
+                if len(line) > 0:
+                    rgw = regex_warning.search(line)
+                    if rgw is not None:
+                        warnings.append(line)
+                    else:
+                        errors.append(line)        
+
+    return output, warnings, errors
+
+
+########
+# MAIN #
+########
+
+if __name__ == '__main__':
+    desc = 'Convert networks into their individual addresses. Supports Nmap network notatations.'
+
+    parser = argparse.ArgumentParser(description=desc)
+    parser.add_argument('file',
+                        nargs='?',
+                        type=argparse.FileType('r'),
+                        action='store',
+                        help='file containing a list of networks split by a newline, otherwise read from STDIN',
+                        metavar='FILE',
+                        default=sys.stdin)
+    args = parser.parse_args()
+
+    try:
+        targets = [line.strip() for line in args.file if len(line.strip())>0 and line[0] is not '#']
+    except KeyboardInterrupt:
+        exit()
+    
+    output, warnings, errors = run_nmap(targets)
+
+    for error in errors:
+        sys.stderr.write(f"[-] {error}\n")
+        sys.stderr.flush()
+    
+    for warning in warnings:
+        sys.stderr.write(f"[!] {warning}\n")
+        sys.stderr.flush()
+    
+    if output:
+        nm = nmap.PortScanner()
+        nm.analyse_nmap_xml_scan(output)
+        for host in sorted(nm.all_hosts(), key=lambda item: socket.inet_aton(item.split(',', 1)[0])):
+            print(host)
+    
