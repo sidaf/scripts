@@ -14,15 +14,7 @@ import subprocess
 import re
 import argparse
 from ipaddress import IPv4Address, summarize_address_range
-
-
-####################
-# GLOBAL VARIABLES #
-####################
-
-global cache
-cache = dict()
-
+from tqdm import tqdm
 
 #############
 # FUNCTIONS #
@@ -38,7 +30,7 @@ def whois(address):
         source = "ARIN"
         nrange = "NetRange:"
         nname = "NetName:"
-        owner = "OrgName:"
+        owner = "(Customer:|OrgName:|Organization:)"
     elif "RIPE Database" in response:
         mark = "RIPE Database"
         source = "RIPE"
@@ -70,8 +62,9 @@ def whois(address):
             result.append({ 'source': source })
             if 'range' not in result[len(result) - 1]:
                 result[len(result) - 1]['range'] = line.split(":")[1].strip()
-                
-        if owner in line:
+
+        reowner = re.search(owner, line)     
+        if reowner:
             if 'owner' not in result[len(result) - 1]:
                 result[len(result) - 1]['owner'] = line.split(":")[1].strip()
         
@@ -86,7 +79,7 @@ def whois(address):
 ########
 
 if __name__ == '__main__':
-    desc = 'Perform a whois lookup on a provided IP address(es) and return network range memebrship and owner information.'
+    desc = 'Perform a whois lookup on provided IP address(es) and return network range memebrship and owner information.'
 
     parser = argparse.ArgumentParser(description=desc)
     parser.add_argument('file',
@@ -96,6 +89,15 @@ if __name__ == '__main__':
                         help='file containing a list of IP addresses split by a newline, otherwise read from STDIN',
                         metavar='FILE',
                         default=sys.stdin)
+    parser.add_argument('--csv',
+                        action='store_true',
+                        help='output in CSV format')
+    parser.add_argument('--cidr',
+                        action='store_true',
+                        help='output network range in CIDR notation')
+    parser.add_argument('--count',
+                        action='store_true',
+                        help='output total count instead of a list of addresses')
     '''
     parser.add_argument('-g', '--geolite',
                         action='store',
@@ -118,41 +120,67 @@ if __name__ == '__main__':
 
     results = dict()
     
-    for address in addresses:
+    for address in tqdm(addresses, leave=False):
         result = None
 
-        # Check cache first
+        # Check results first
         ip_address = IPv4Address(address)
-        for ip_network in cache.keys():
+        for ip_network in results.keys():
             if ip_address in ip_network:
-                result = cache[ip_network]
+                result = results[ip_network]
                 break
 
-        # Not in cache, query whois
+        # Not in results, query whois
         if not result:
             data = whois(address)
             if data:
-                result = data[-1]
-                first = IPv4Address(result['range'].split('-')[0].strip())
-                last = IPv4Address(result['range'].split('-')[1].strip())
-                networks = list(summarize_address_range(first, last))
-                #if len(networks) > 1:
-                #    sys.stderr.write(f"{address} => ohoh, network range spans more than one network object, fixme!\n")
-                #    continue
-                cache[networks[0]] = result
+                last_count = 2147483647
+
+                for record in data:
+                    first = IPv4Address(record['range'].split('-')[0].strip())
+                    last = IPv4Address(record['range'].split('-')[1].strip())
+                    networks = list(summarize_address_range(first, last))
+                    for network in networks:
+                        if IPv4Address(address) in network:
+                            if len(list(network.hosts())) < last_count:
+                                last_count = len(list(network.hosts()))
+                                result = record
+                                result['cidr'] = network
+                if result:
+                    results[result['cidr']] = result
+                else:
+                    sys.stderr.write(f"{address} => ohoh, no network object found, fixme!\n")
+                    sys.stderr.flush()
+                    continue
             else:
-                sys.stderr.write(f"{address} => could not get result\n")
+                sys.stderr.write(f"{address} => ohoh, whois returned no data!\n")
+                sys.stderr.flush()
                 continue
         
-        # Add/increment count
-        if result['netname'] in results:
-            results[result['netname']]['count'] += 1
+        if 'addresses' not in results[result['cidr']]:
+            results[result['cidr']]['addresses'] = list()
+            
+        results[result['cidr']]['addresses'].append(address)
+
+
+    for item in results.values():
+        if args.cidr:
+            network = str(item['cidr'])
         else:
-            results[result['netname']] = result
-            results[result['netname']]['count'] = 1
+            network = item['range']
 
-
-    for result in results.values():
-        print(f"{result['source']}: {result['netname']} - {result['owner']}")
-        sys.stdout.write(f"\t{result['range']}\t- {result['count']} IP ")
-        print('addresses') if result['count'] > 1 else print('address')
+        if args.csv:
+            if not args.count:
+                for address in item['addresses']:
+                    print(f"{address},{network},{item['netname']},{item['owner']},{item['source']}")
+            else:
+                print(f"{len(item['addresses'])},{network},{item['netname']},{item['owner']},{item['source']}")
+        else:
+            print(f"{item['source']} - {item['netname']}, {item['owner']}")
+            sys.stdout.write(f"\t{network}\t: ")
+            if not args.count:
+                print(f"{', '.join(item['addresses'])}")
+            else:
+                sys.stdout.write(f"{len(item['addresses'])} IP ")
+                sys.stdout.write('addresses') if len(item['addresses']) > 1 else sys.stdout.write('address')
+                print(" in network")
