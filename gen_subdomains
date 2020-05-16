@@ -24,8 +24,8 @@ if __name__ == '__main__':
                         default=sys.stdin)
     args = parser.parse_args()
 
-    wordlist = [line.strip().lower() for line in args.wordlist if len(line)>0 and line[0] is not '#']
-    domains = [line.strip().lower() for line in args.file if len(line)>0 and line[0] is not '#']
+    wordlist = [line.strip().lower() for line in args.wordlist if len(line)>0 and line[0] != '#']
+    domains = [line.strip().lower() for line in args.file if len(line)>0 and line[0] != '#']
 
     for domain in domains:
         for word in wordlist:

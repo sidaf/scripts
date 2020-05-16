@@ -95,7 +95,7 @@ if __name__ == '__main__':
         exit(1)
 
     try:
-        addresses = [line.strip() for line in args.file if len(line.strip())>0 and line[0] is not '#']
+        addresses = [line.strip() for line in args.file if len(line.strip())>0 and line[0] != '#']
     except KeyboardInterrupt:
         exit()
 
