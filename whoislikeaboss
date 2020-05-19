@@ -36,7 +36,7 @@ def whois(address):
         source = "RIPE"
         nrange = "inetnum:"
         nname = "netname:"
-        owner = "address:"
+        owner = "(org-name:|address:|descr:)"
     elif "whois.apnic.net" in response:
         mark = "whois.apnic.net"
         source = "APNIC"
@@ -58,17 +58,19 @@ def whois(address):
         if not process:
             continue
 
-        if nrange in line: 
+        re_nrange = re.search(nrange, line)
+        if re_nrange: 
             result.append({ 'source': source })
             if 'range' not in result[len(result) - 1]:
                 result[len(result) - 1]['range'] = line.split(":")[1].strip()
 
-        reowner = re.search(owner, line)     
-        if reowner:
+        re_owner = re.search(owner, line)     
+        if re_owner and not 'owner' in result[len(result) - 1]:
             if 'owner' not in result[len(result) - 1]:
                 result[len(result) - 1]['owner'] = line.split(":")[1].strip()
         
-        if nname in line:
+        re_nname = re.search(nname, line) 
+        if re_nname:
             if 'netname' not in result[len(result) - 1]:
                 result[len(result) - 1]['netname'] = line.split(":")[1].strip()
 
@@ -176,7 +178,7 @@ if __name__ == '__main__':
             else:
                 print(f"{len(item['addresses'])},{network},{item['netname']},{item['owner']},{item['source']}")
         else:
-            print(f"{item['source']} - {item['netname']}, {item['owner']}")
+            print(f"{item['source']} - {item['netname']} - {item['owner']}")
             sys.stdout.write(f"\t{network}\t: ")
             if not args.count:
                 print(f"{', '.join(item['addresses'])}")
