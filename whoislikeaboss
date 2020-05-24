@@ -13,7 +13,7 @@ import os
 import subprocess
 import re
 import argparse
-from ipaddress import IPv4Address, summarize_address_range
+from ipaddress import IPv4Address, IPv4Network, summarize_address_range
 from tqdm import tqdm
 
 #############
@@ -25,7 +25,13 @@ def whois(address):
     p = subprocess.Popen(['whois', address], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     response = p.communicate()[0].decode()
 
-    if "ARIN WHOIS" in response:
+    if "Copyright LACNIC lacnic.net" in response:
+        mark = "Copyright LACNIC lacnic.net"
+        source = "LACNIC"
+        nrange = "inetnum:"
+        nname = "ownerid:"
+        owner = "owner:"
+    elif "ARIN WHOIS" in response:
         mark = "ARIN WHOIS"
         source = "ARIN"
         nrange = "NetRange:"
@@ -139,15 +145,21 @@ if __name__ == '__main__':
                 last_count = 2147483647
 
                 for record in data:
-                    first = IPv4Address(record['range'].split('-')[0].strip())
-                    last = IPv4Address(record['range'].split('-')[1].strip())
-                    networks = list(summarize_address_range(first, last))
-                    for network in networks:
-                        if IPv4Address(address) in network:
-                            if len(list(network.hosts())) < last_count:
-                                last_count = len(list(network.hosts()))
-                                result = record
-                                result['cidr'] = network
+                    if '/' not in record['range']:
+                        first = IPv4Address(record['range'].split('-')[0].strip())
+                        last = IPv4Address(record['range'].split('-')[1].strip())
+                        networks = list(summarize_address_range(first, last))
+                        for network in networks:
+                            if IPv4Address(address) in network:
+                                if len(list(network.hosts())) < last_count:
+                                    last_count = len(list(network.hosts()))
+                                    result = record
+                                    result['cidr'] = network
+                    else:
+                        if len(list(IPv4Network(record['range']).hosts())) < last_count:
+                            last_count = len(list(IPv4Network(record['range']).hosts()))
+                            result = record
+                            result['cidr'] = record['range']
                 if result:
                     results[result['cidr']] = result
                 else:

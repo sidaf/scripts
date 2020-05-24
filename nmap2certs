@@ -1,0 +1,73 @@
+#!/usr/bin/env ruby
+
+$stderr.sync = true
+
+require 'nmap/xml'
+require "docopt"
+require "set"
+
+doc = <<DOCOPT
+Parse nmap xml output and print out certificates discovered using the ssl-cert NSE script.
+
+Usage:
+  #{__FILE__} <xml>...
+  #{__FILE__} -h | --help
+
+Options:
+  -h --help     Show this output.
+
+DOCOPT
+
+begin
+  options = Docopt::docopt(doc)
+rescue Docopt::Exit => e
+  STDERR.puts e.message
+  exit
+end
+
+# check arguments
+
+options['<xml>'].each do |file|
+  if not File.exists?(file)
+    puts "[!] #{file} does not exist!"
+    exit 1
+  end
+end
+
+# variables
+
+targets = Hash.new
+
+# process nmap xml files
+
+options['<xml>'].each do |nmap|
+  Nmap::XML.new(nmap) do |xml|
+    xml.each_host do |host|
+      host.each_port do |port|
+        port.scripts.each do |name, output|
+          next unless name == "ssl-cert"
+          output.each_line do |line|
+            cert = String.new
+            if line.include? "Subject: commonName="
+              cert = line.split("=").last
+            elsif line.include? "Subject Alternative Name:"
+              cert = line.split(":").last
+            end
+            unless cert.empty?
+              unless targets.key? host.ip
+                targets[host.ip] = SortedSet.new
+              end
+              targets[host.ip] << cert
+            end
+          end
+        end
+      end
+    end
+  end
+end
+
+targets.each do |ip, hostnames|
+  hostnames.each do |hostname|
+    puts "#{ip},#{hostname}"
+  end
+end

@@ -8,7 +8,7 @@ require 'optparse'
 ARGF.each_line do |range|
   ip_list = Rex::Socket::RangeWalker.new(range)
   if ip_list.length == 0
-    STDERR.puts "[-] The IP address '#{range}' provided appear to be invalid!"
+    STDERR.puts "[-] The line '#{range}' appears to be invalid!"
     exit
   else
     ip_list.each do |i|

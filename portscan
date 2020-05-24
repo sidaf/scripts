@@ -111,13 +111,13 @@ def nmap_output_parser(line):
     except xml.sax._exceptions.SAXParseException:
         pass
 
-def execute_nmap(targets, ports, speed, stats):
-    command_line = f"nmap -oX - -v --stats-every {stats}s -Pn -n -T{speed} -sV --version-intensity=9 -sT --reason --open -p T:{ports} {' '.join(targets)}"
+def execute_nmap(args):
     output = str()
     stderr = str()
+    cmd = f"nmap -oX - {args}"
     
     proc = subprocess.Popen(
-        shlex.split(command_line),
+        shlex.split(cmd),
         bufsize=100000,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE
@@ -152,8 +152,20 @@ def execute_nmap(targets, ports, speed, stats):
 
     return output, warnings, errors
 
-def do_nmap(targets, ports, speed, stats, filename):
-    output, warnings, errors = execute_nmap(targets, ports, speed, stats)
+def do_nmap(targets, ports, tcp, timing, stats, nse, filename):
+    args = f"-v --stats-every {stats}s -T{timing} "
+
+    if nse:
+        args += "-O --traceroute --script=default --script-timeout=30m "
+
+    if tcp:
+        args += f"-n -Pn -sS -sV --version-intensity=9 -p T:{ports} "
+    else:
+        args += f"-n -Pn -sU -sV --version-intensity=2 -p U:{ports} "
+
+    args +=  ' '.join(targets)
+
+    output, warnings, errors = execute_nmap(args)
 
     if len(errors) > 0:
         print_error("Errors encountered during scan:")
@@ -201,7 +213,7 @@ if __name__ == '__main__':
                         help='directory to store xml output (default: current directory)',
                         metavar='DIR',
                         default=os.getcwd())
-    parser.add_argument('-s', '--speed',
+    parser.add_argument('--timing',
                         type=int,
                         action='store',
                         help='Nmap timing template to use, 1-5 (default: 4)',
@@ -213,22 +225,35 @@ if __name__ == '__main__':
                         help='Nmap status messages print interval, in seconds (default: 10)',
                         metavar='N',
                         default=10)
-    parser.add_argument('-p', '--ports',
+    port_group = parser.add_mutually_exclusive_group()
+    port_group.add_argument('-p', '--ports',
                         action='store',
                         help='override default ports selection with a custom list of ports',
                         metavar='PORTS',
                         default=None)
-    parser.add_argument('-pl', '--portslist',
+    port_group.add_argument('-pl', '--portslist',
                         nargs='?',
                         type=argparse.FileType('r'),
                         action='store',
                         help='override default ports selection with a file containing a custom list of ports split by a newline',
                         metavar='FILE',
                         default=None)
+    parser.add_argument('-t', '--tcp',
+                        action='store_true',
+                        help='perform a TCP port scan')
+    parser.add_argument('-u', '--udp',
+                        action='store_true',
+                        help='perform a UDP port scan')
+    parser.add_argument('-n', '--nse',
+                        action='store_true',
+                        help='enable script scanning')
     #parser.add_argument('-q', '--quick',
     #                    action='store_true',
     #                    help='Use masscan to perform a prelimary portscan before running nmap')
     args = parser.parse_args()
+
+    if not (args.tcp or args.udp):
+        parser.error('No port scan type specified, add --tcp and/or --udp')
 
     try:
         targets = [line.strip() for line in args.file if len(line.strip())>0 and line[0] != '#']
@@ -249,12 +274,22 @@ if __name__ == '__main__':
     '''
 
     if args.ports:
-        print_info(f"Nmap scan 1 of 1")
-        filename = f"{args.output}/tcp-1.xml"
-        do_nmap(targets, args.ports, args.speed, args.stats, filename)
+        tcp_ports = udp_ports = [args.ports]
+    elif args.portslist:
+        tcp_ports = udp_ports = [','.join(args.portlist)]
     else:
-        for counter, ports in enumerate(NMAP_TCP_PORTS, start=1):
-            print_info(f"Nmap scan {counter} of {len(NMAP_TCP_PORTS)}")
+        tcp_ports = NMAP_TCP_PORTS
+        udp_ports = UDP_PORTS
+
+    if args.tcp:
+        for counter, ports in enumerate(tcp_ports, start=1):
+            print_info(f"Nmap TCP port scan {counter} of {len(tcp_ports)}")
             filename = f"{args.output}/tcp-{counter}.xml"
-            do_nmap(targets, args.ports, args.speed, args.stats, filename)
+            do_nmap(targets, args.ports, True, args.timing, args.stats, args.nse, filename)
+
+    if args.udp:
+        for counter, ports in enumerate(udp_ports, start=1):
+            print_info(f"Nmap UDP port scan {counter} of {len(udp_ports)}")
+            filename = f"{args.output}/udp-{counter}.xml"
+            do_nmap(targets, args.ports, False, args.timing, args.stats, args.nse, filename)
     

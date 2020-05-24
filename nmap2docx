@@ -92,17 +92,21 @@ input.each do |nmap|
       end
 
       host.each_port do |port|
-        if port.state == :open and not port.service.nil?
-          if port.service.ssl?
-            name = "ssl/#{port.service.name}"
-          else
-            name = port.service.name
-          end
-          unless name.include? 'tcpwrapped'
-            unless hosts.key? host.ip
-              hosts[host.ip] = Array.new
+        if port.state == :open 
+          unless port.service.nil?
+            if port.service.ssl?
+              name = "ssl/#{port.service.name}"
+            else
+              name = port.service.name
             end
-            hosts[host.ip] << { :port => port.number, :proto => port.protocol, :name => name }
+            unless name.include? 'tcpwrapped'
+              unless hosts.key? host.ip
+                hosts[host.ip] = Array.new
+              end
+              hosts[host.ip] << { :port => port.number, :proto => port.protocol, :name => name }
+            end
+          else
+            hosts[host.ip] << { :port => port.number, :proto => port.protocol, :name => 'unknown' }
           end
         end
       end
