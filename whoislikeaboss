@@ -159,7 +159,7 @@ if __name__ == '__main__':
                         if len(list(IPv4Network(record['range']).hosts())) < last_count:
                             last_count = len(list(IPv4Network(record['range']).hosts()))
                             result = record
-                            result['cidr'] = record['range']
+                            result['cidr'] = IPv4Network(record['range'])
                 if result:
                     results[result['cidr']] = result
                 else:
