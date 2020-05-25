@@ -276,7 +276,7 @@ if __name__ == '__main__':
     if args.ports:
         tcp_ports = udp_ports = [args.ports]
     elif args.portslist:
-        tcp_ports = udp_ports = [','.join(args.portlist)]
+        tcp_ports = udp_ports = [','.join(args.portslist)]
     else:
         tcp_ports = NMAP_TCP_PORTS
         udp_ports = UDP_PORTS
