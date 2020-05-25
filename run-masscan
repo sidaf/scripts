@@ -20,8 +20,8 @@ else
     let INDEX=${i}+1
     OUT="tcp-${INDEX}"
 
-    echo "# masscan -iL $FILE -p T:$PORTS --rate $RATE -oB $OUT.masscan" | tee $OUT.out
-    masscan -iL $FILE -p T:$PORTS --rate $RATE --retries -oB $OUT.masscan | tee -a $OUT.out
+    echo "# masscan -iL $FILE -p T:$PORTS --rate $RATE --retries 1 -oB $OUT.masscan" | tee $OUT.out
+    masscan -iL $FILE -p T:$PORTS --rate $RATE --retries 1 -oB $OUT.masscan | tee -a $OUT.out
     if [ $(ls $OUT.masscan 2> /dev/null | wc -l) -gt 0 ]; then
       masscan --readscan $OUT.masscan -oX $OUT.xml
       masscan --readscan $OUT.masscan -oL $OUT.list
