@@ -106,7 +106,7 @@ def nmap_output_parser(line):
                     elapsed = xmlnode.attributes['elapsed'].value
                     summary = xmlnode.attributes['summary'].value
                     sys.stdout.write("\r\033[K")
-                    sys.stdout.write(f"[{timestamp}] Scan completed (took {time.strftime('%Hh %Mm %Ss', time.gmtime(int(elapsed)))})\n")
+                    sys.stdout.write(f"[{timestamp}] Scan completed (took {time.strftime('%Hh %Mm %Ss', time.gmtime(round(elapsed)))})\n")
                     sys.stdout.flush()
     except xml.sax._exceptions.SAXParseException:
         pass
