@@ -89,7 +89,7 @@ def nmap_output_parser(line):
                         remaining = xmlnode.attributes['remaining'].value
                         etc = time.strftime("%b %d %H:%M:%S", time.localtime(int(xmlnode.attributes['etc'].value)))
                         sys.stdout.write("\r\033[K")
-                        sys.stdout.write(f"[{timestamp}] {task.capitalize()} {percent}% done; ETC: {etc} ({remaining}s remaining)")
+                        sys.stdout.write(f"[{timestamp}] {task.capitalize()} {percent}% done; ETC: {etc} ({time.strftime('%Hh %Mm %Ss', time.gmtime(int(remaining)))} remaining)")
                         sys.stdout.flush()
                     else:
                         sys.stdout.write("\r\033[K")
@@ -106,7 +106,7 @@ def nmap_output_parser(line):
                     elapsed = xmlnode.attributes['elapsed'].value
                     summary = xmlnode.attributes['summary'].value
                     sys.stdout.write("\r\033[K")
-                    sys.stdout.write(f"[{timestamp}] Scan completed (took {elapsed}s)\n")
+                    sys.stdout.write(f"[{timestamp}] Scan completed (took {time.strftime('%Hh %Mm %Ss', time.gmtime(int(elapsed)))})\n")
                     sys.stdout.flush()
     except xml.sax._exceptions.SAXParseException:
         pass
@@ -135,7 +135,7 @@ def execute_nmap(args):
         try:
             proc.wait(timeout=0.5)
         except subprocess.TimeoutExpired:
-            print_error('Nmap did not terminate, please kill manually')
+            print_error('[!] Nmap did not terminate, please kill manually')
 
         stderr = proc.stderr.read().decode('utf-8')
         warnings = list()
