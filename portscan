@@ -15,7 +15,7 @@ import argparse
 import sys
 import os
 import nmap
-import masscan
+#import masscan
 import subprocess
 import shlex
 import queue
