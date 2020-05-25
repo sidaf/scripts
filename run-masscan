@@ -1,16 +1,33 @@
 #!/bin/bash
 
+TCP1='0-8191'
+TCP2='8193-16383'
+TCP3='16384-32767'
+TCP4='32768-40959'
+TCP5='40958-49151'
+TCP6='49150-57343'
+TCP7='57342-65535'
+
 if [ -z $2 ]; 
   then printf "\nSyntax: $0 <file of ips> <rate|e.g. 2000>\n\n"
 else
-  FILE=$1; RATE=$2;
-  echo "# masscan -iL $FILE -p T:0-65535 --rate $RATE -oB tcp.masscan" | tee tcp.out
-  masscan -iL $FILE -p T:0-65535 --rate $RATE -oB tcp.masscan | tee -a tcp.out
-  if [ $(ls tcp.masscan 2> /dev/null | wc -l) -gt 0 ]; then
-    masscan --readscan tcp.masscan -oX tcp.xml
-    masscan --readscan tcp.masscan -oL tcp.list
-    cat tcp.list | grep ^open | cut -d" " -f3 | sort -n | uniq > ports.list
-    cat tcp.list | grep ^open | cut -d" " -f4 | sort -V | uniq > hosts.list
-    chown $USER:$USER tcp.* ports.list
-  fi
+  FILE=$1
+  RATE=$2
+  TCP_PORTS=($TCP1 $TCP2 $TCP3 $TCP4 $TCP5 $TCP6 $TCP7)
+
+  for i in "${!TCP_PORTS[@]}"; do
+    PORTS="${TCP_PORTS[$i]}"
+    let INDEX=${i}+1
+    OUT="tcp-${INDEX}"
+
+    echo "# masscan -iL $FILE -p T:$PORTS --rate $RATE -oB $OUT.masscan" | tee $OUT.out
+    masscan -iL $FILE -p T:$PORTS --rate $RATE -oB $OUT.masscan | tee -a $OUT.out
+    if [ $(ls $OUT.masscan 2> /dev/null | wc -l) -gt 0 ]; then
+      masscan --readscan $OUT.masscan -oX $OUT.xml
+      masscan --readscan $OUT.masscan -oL $OUT.list
+      cat tcp-*.list | grep ^open | cut -d" " -f3 | sort -n | uniq > ports.list
+      cat tcp-*.list | grep ^open | cut -d" " -f4 | sort -V | uniq > hosts.list
+      chown $USER:$USER tcp-*.* ports.list hosts.list
+    fi
+  done
 fi
