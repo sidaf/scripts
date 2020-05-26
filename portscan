@@ -152,12 +152,16 @@ def execute_nmap(args):
 
     return output, warnings, errors
 
-def do_nmap(targets, ports, tcp, timing, stats, nse, filename):
+def do_nmap(targets, ports, tcp, timing, stats, nse, vulners, filename):
     args = f"-v --stats-every {stats}s -T{timing} "
 
-    if nse:
+    if nse and vulners:
         args += "-O --traceroute --script=default,vulners --script-timeout=30m "
-
+    elif nse:
+        args += "-O --traceroute --script=default --script-timeout=30m "
+    elif vulners:
+        args += "-O --traceroute --script=vulners --script-timeout=30m "
+        
     if tcp:
         args += f"-n -Pn -sS -sV --version-intensity=9 -p T:{ports} "
     else:
@@ -247,6 +251,9 @@ if __name__ == '__main__':
     parser.add_argument('-n', '--nse',
                         action='store_true',
                         help='enable script scanning')
+    parser.add_argument('-v', '--vulners',
+                        action='store_true',
+                        help='enable vulners script scanning')
     #parser.add_argument('-q', '--quick',
     #                    action='store_true',
     #                    help='Use masscan to perform a prelimary portscan before running nmap')
@@ -286,11 +293,11 @@ if __name__ == '__main__':
         for counter, ports in enumerate(tcp_ports, start=1):
             print_info(f"Nmap TCP port scan {counter} of {len(tcp_ports)}")
             filename = f"{args.output}/tcp-{counter}.xml"
-            do_nmap(targets, ports, True, args.timing, args.stats, args.nse, filename)
+            do_nmap(targets, ports, True, args.timing, args.stats, args.nse, args.vulners, filename)
 
     if args.udp:
         for counter, ports in enumerate(udp_ports, start=1):
             print_info(f"Nmap UDP port scan {counter} of {len(udp_ports)}")
             filename = f"{args.output}/udp-{counter}.xml"
-            do_nmap(targets, ports, False, args.timing, args.stats, args.nse, filename)
+            do_nmap(targets, ports, False, args.timing, args.stats, args.nse, args.vulners, filename)
     
