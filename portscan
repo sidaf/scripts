@@ -156,7 +156,7 @@ def do_nmap(targets, ports, tcp, timing, stats, nse, filename):
     args = f"-v --stats-every {stats}s -T{timing} "
 
     if nse:
-        args += "-O --traceroute --script=\"(default or vulners)\" --script-timeout=30m "
+        args += "-O --traceroute --script=default,vulners --script-timeout=30m "
 
     if tcp:
         args += f"-n -Pn -sS -sV --version-intensity=9 -p T:{ports} "
