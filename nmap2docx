@@ -1,57 +1,48 @@
 #!/usr/bin/env ruby
-#/ Usage: nmap2docx [options] ...
-#/
-#/ This script takes an nmap generated xml file and generates a Word document 
-#/ that contains a table with four columns: IP address, hostname, port, and 
-#/ service. Only hosts with accessible ports are included. A CSV file 
-#/ containing additional IP address and hostname pairs can also be specified.
 
 $stderr.sync = true
 
 require 'nmap/xml'
 require 'sablon'
-require 'optparse'
 require 'csv'
+require "docopt"
 require "set"
 
-# argument default values 
+doc = <<DOCOPT
+This script accepts nmap generated xml files and generates a Word document 
+that contains a table with four columns: IP address, hostname, port, and 
+service. Only hosts with accessible ports are included. A CSV file 
+containing additional IP address and hostname pairs can also be specified.
 
-output = nil
-vhosts = nil
-input = Array.new
+Usage:
+  #{__FILE__} -o <output> [-n <hostnames>] <xml>...
+  #{__FILE__} -h | --help
 
-# parse arguments
+Options:
+  -o, --output=<output>         The generated document.
+  -n, --hostnames=<hostnames>   CSV file containing IP addresses and hostnames.
+  -h, --help                    Show this output.
 
-file = __FILE__
-ARGV.options do |opts|
-  opts.on("-o", "--output FILE", String)            { |val| output = val }
-  opts.on("-n", "--hostnames FILE", String)         { |val| vhosts = val }
-  opts.on("-i", "--input FILE1,FILE2,FILE3", Array) { |val| input = val }
-  opts.on_tail("-h", "--help")                      { exec "grep ^#/<'#{file}'|cut -c4-" }
-  opts.parse!
+DOCOPT
+
+begin
+  options = Docopt::docopt(doc)
+rescue Docopt::Exit => e
+  STDERR.puts e.message
+  exit
 end
 
 # check arguments
 
-if output.nil? then
-  puts ARGV.options
-  exit 1
-end
-
-if input.empty? then
-  puts ARGV.options
-  exit 1
-end
-
-input.each do |file|
+options['<xml>'].each do |file|
   if not File.exists?(file)
-    puts "#{file} does not exist!"
+    puts "[!] #{file} does not exist!"
     exit 1
   end
 end
 
-if not vhosts.nil? and not File.exists?(vhosts)
-  puts "#{vhosts} does not exist!"
+if options['--hostnames'] and not File.exists?(options['--hostnames'])
+  puts "#{options['--hostnames']} does not exist!"
   exit 1
 end
 
@@ -63,9 +54,9 @@ results = Array.new
 
 # process hostnames csv file
 
-if not vhosts.nil?
-  puts "[+] Processing #{vhosts}"
-  CSV.foreach(vhosts) do |row|
+if options['--hostnames']
+  puts "[+] Processing hostnames in #{options['--hostnames']}"
+  CSV.foreach(options['--hostnames']) do |row|
     ip = row[0].strip
     hostname = row[1].strip.downcase
     unless hostname.empty?
@@ -79,8 +70,8 @@ end
 
 # process nmap xml files
 
-input.each do |nmap|
-  puts "[+] Processing #{nmap}"
+options['<xml>'].each do |nmap|
+  puts "[+] Processing nmap results in #{nmap}"
   Nmap::XML.new(nmap) do |xml|
     xml.each_host do |host|
 
@@ -128,8 +119,8 @@ end
 
 # import data into word document template
 
-puts "[+] Generating #{output} ..."
+puts "[+] Generating document #{options['--output']} ..."
 context = { :hosts => results }
 template = Sablon.template(File.expand_path(File.dirname(__FILE__) + "/nmap2docx.docx"))
-template.render_to_file File.expand_path(output), context
+template.render_to_file File.expand_path(options['--output']), context
 

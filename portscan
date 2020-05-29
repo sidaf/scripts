@@ -160,7 +160,7 @@ def do_nmap(targets, ports, tcp, timing, stats, nse, vulners, filename):
     elif nse:
         args += "-O --traceroute --script=default --script-timeout=30m "
     elif vulners:
-        args += "-O --traceroute --script=vulners --script-timeout=30m "
+        args += "-O --script=vulners --script-timeout=30m "
         
     if tcp:
         args += f"-n -Pn -sS -sV --version-intensity=9 -p T:{ports} "
