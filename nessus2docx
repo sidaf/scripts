@@ -27,8 +27,8 @@ end
 
 doc = <<DOCOPT
 This script accepts Nesses scan results and generates a Word document containing the 
-discovered vulnerabilities listed by severity. Informational severity vulnerabilities 
-are ignored by default.
+discovered findings listed by severity. Informational severity findings are 
+ignored by default.
 
 Usage:
   #{__FILE__} -o <output> <nessus>...
@@ -38,12 +38,12 @@ Usage:
 
 Options:
   -o, --output=<output>    The generated document.
-  --all                    Shorthand to include all severity levels.
-  --critical               Output critical severity vulnerabilities.
-  --high                   Output high severity vulnerabilities.
-  --medium                 Output medium severity vulnerabilities.
-  --low                    Output low severity vulnerabilities.
-  --info                   Output info severity vulnerabilities.
+  --all                    Shorthand to output all severity levels.
+  --critical               Output critical severity findings.
+  --high                   Output high severity findings.
+  --medium                 Output medium severity findings.
+  --low                    Output low severity findings.
+  --info                   Output info severity findings.
   -h, --help               Show this output.
 
 DOCOPT

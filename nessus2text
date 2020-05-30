@@ -1,0 +1,271 @@
+#!/usr/bin/env ruby
+
+$stderr.sync = true
+
+begin
+  require 'ruby-nessus'
+rescue LoadError
+  STDERR.puts "The ruby-nessus gem could not be loaded, is the latest version installed?"
+  STDERR.puts "-> git clone https://github.com/mephux/ruby-nessus"
+  STDERR.puts "-> cd ruby-nessus && gem build ruby-nessus.gemspec && gem install ruby-nessus-*.gem"
+  exit
+end
+begin
+  require "docopt"
+rescue LoadError
+  STDERR.puts "The docopt gem could not be loaded, is it installed?"
+  STDERR.puts "-> gem install docopt"
+  exit
+end
+begin
+  require 'terminal-table'
+rescue LoadError
+  STDERR.puts "The terminal-table gem could not be loaded, is it installed?"
+  STDERR.puts "-> gem install terminal-table"
+  exit
+end
+begin
+  require 'rex/text'
+rescue LoadError
+  STDERR.puts "The rex-text gem could not be loaded, is it installed?"
+  STDERR.puts "-> gem install rex-text"
+  exit
+end
+
+doc = <<DOCOPT
+This script accepts Nesses scan results prints the reults in textual format.
+Informational severity findings are not printed by default.
+
+Usage:
+  #{__FILE__} list [--name=<regex>] [--family=<regex>] <nessus>...
+  #{__FILE__} list [--name=<regex>] [--family=<regex>] [--critical] [--high] [--medium] [--low] [--info] <nessus>...
+  #{__FILE__} list [--name=<regex>] [--family=<regex>] [--all] <nessus>...
+  #{__FILE__} show <identifier> [--output] <nessus>...
+  #{__FILE__} -h | --help
+
+Options:
+  --name=<regex>           Filter findings by name, regex based.
+  --family=<regex>         Filter findings by family, regex based.
+  --all                    Shorthand to output all severity levels.
+  --critical               Output critical severity findings.
+  --high                   Output high severity findings.
+  --medium                 Output medium severity findings.
+  --low                    Output low severity findings.
+  --info                   Output info severity findings.  
+  --output                 Output Nessus plugin output.   
+  -h, --help               Show this output.
+
+DOCOPT
+
+begin
+  options = Docopt::docopt(doc)
+rescue Docopt::Exit => e
+  STDERR.puts e.message
+  exit
+end
+
+# check arguments
+
+options['<nessus>'].each do |file|
+  if not File.exists?(file)
+    STDERR.puts "[!] #{file} does not exist!"
+    exit 1
+  end
+end
+
+# variables
+
+findings = Hash.new
+criticals = Array.new
+highs = Array.new
+mediums = Array.new
+lows = Array.new
+informationals = Array.new
+
+# process nessus files
+
+options['<nessus>'].each do |nessus|
+  RubyNessus::Parse.new(nessus) do |scan|
+    scan.hosts.each do |host|
+      host.events.each do |event|
+        next if event.severity == 4 and not options['--all'] and (options['--high'] or options['--medium'] or options['--low'] or options['--info'])
+        next if event.severity == 3 and not options['--all'] and (options['--critical'] or options['--medium'] or options['--low'] or options['--info'])
+        next if event.severity == 2 and not options['--all'] and (options['--critical'] or options['--high'] or options['--low'] or options['--info'])
+        next if event.severity == 1 and not options['--all'] and (options['--critical'] or options['--high'] or options['--medium'] or options['--info'])
+        next if event.severity == 0 and not options['--all'] and not options['--info']
+
+        unless findings.include? event.name
+          findings[event.name] = {
+            :id => event.id,
+            :name => event.name,
+            :family => event.family,
+            :severity => event.severity,
+            :cvss => event.cvss_base_score,
+            :description => event.description.strip.gsub(/[ ]+/, " "), 
+            :remediation => event.solution,
+            :references => Array.new,
+            :affected => Array.new,
+            :output => Array.new
+          }
+          if event.see_also
+            event.see_also.each do |ref|
+              findings[event.name][:references] << ref
+            end
+          end
+          if event.cve
+            event.cve.each do |cve|
+              findings[event.name][:references] << "http://web.nvd.nist.gov/view/vuln/detail?vulnId=#{cve}"
+            end
+          end
+        end
+
+        affected = "#{host.ip}:#{event.port.number} / #{event.port.protocol} / #{event.port.service}"
+        unless findings[event.name][:affected].include? affected
+          findings[event.name][:affected] << affected
+        end
+        findings[event.name][:output] << {
+          :service => affected,
+          :output => event.output ? event.output.strip : nil
+        }
+      end
+    end
+  end
+end
+
+# build data array ready for output
+
+findings.each do |name, finding|
+  if finding[:severity] == 4
+    criticals << finding
+  elsif finding[:severity] == 3
+    highs << finding
+  elsif finding[:severity] == 2
+    mediums << finding
+  elsif finding[:severity] == 1
+    lows << finding
+  elsif finding[:severity] == 0
+    informationals << finding
+  end
+end
+
+criticals = criticals.sort_by{ |k| k["cvss"] }.reverse!
+highs = highs.sort_by{ |k| k["cvss"] }.reverse!
+mediums = mediums.sort_by{ |k| k["cvss"] }.reverse!
+lows = lows.sort_by{ |k| k["cvss"] }.reverse!
+informationals = informationals.sort_by{ |k| k["cvss"] }.reverse!
+
+results = criticals + highs + mediums + lows + informationals
+
+# output data
+
+rows = []
+
+if options['list']
+  results.each do |finding|
+    if finding[:severity] == 4
+      severity = 'Critical'
+    elsif finding[:severity] == 3
+      severity = 'High'
+    elsif finding[:severity] == 2
+      severity = 'Medium'
+    elsif finding[:severity] == 1
+      severity = 'Low'
+    elsif finding[:severity] == 0
+      severity = 'Info'
+    end
+    row = [finding[:id], severity, finding[:name], finding[:family], finding[:output].length]
+
+    unless options['--name'] or options['--family']
+      rows << row
+      next
+    end
+
+    if options['--name'] and options['--family']
+      if finding[:name] =~ /#{options['--name']}/i
+        if finding[:family] =~ /#{options['--family']}/i
+          rows << row
+        end
+      end
+      next
+    end
+
+    if options['--name']
+      if finding[:name] =~ /#{options['--name']}/i
+        rows << row
+      end
+    end
+
+    if options['--family']
+      if finding[:family] =~ /#{options['--family']}/i
+        rows << row
+      end
+    end
+  end
+  table = Rex::Text::Table.new({'Columns' => ['ID', 'Severity', 'Name', 'Family', 'Count']})
+  rows.each do |row|
+    table << row
+  end
+  table.print
+  #puts Terminal::Table.new :headings => ['ID', 'Severity', 'Name', 'Family', '#'], :rows => rows
+elsif options['show']
+  results.each do |finding|
+    if finding[:id] == options['<identifier>'].to_i
+
+      if finding[:severity] == 4
+        severity = 'Critical'
+      elsif finding[:severity] == 3
+        severity = 'High'
+      elsif finding[:severity] == 2
+        severity = 'Medium'
+      elsif finding[:severity] == 1
+        severity = 'Low'
+      elsif finding[:severity] == 0
+        severity = 'Info'
+      end
+
+      puts "Name:"
+      Rex::Text.wordwrap(finding[:name], 2, 70).split(/\n/).each do |line|
+        puts line
+      end
+      puts
+      puts "Severity:"
+      Rex::Text.wordwrap(severity, 2, 70).split(/\n/).each do |line|
+        puts line
+      end
+      puts
+      puts "Family:"
+      Rex::Text.wordwrap(finding[:family], 2, 70).split(/\n/).each do |line|
+        puts line
+      end
+      puts
+      puts "Description:"
+      Rex::Text.wordwrap(finding[:description], 2, 70).split(/\n/).each do |line|
+        puts line
+      end
+      puts
+      puts "Solution:"
+      Rex::Text.wordwrap(finding[:remediation], 2, 70).split(/\n/).each do |line|
+        puts line
+      end
+      puts
+      puts "Affected:"
+      Rex::Text.wordwrap(finding[:affected].join("\n"), 2, 70).split(/\n/).each do |line|
+        puts line
+      end
+      if options['--output']
+        puts
+        puts "Output:"
+        finding[:output].each do |info|
+          unless info[:output].nil?
+            Rex::Text.wordwrap(info[:service], 2, 70).split(/\n/).each do |line|
+              puts "#{line}:"
+            end
+            Rex::Text.wordwrap(info[:output], 4, 70).split(/\n/).each do |line|
+              puts line
+            end
+          end
+        end
+      end
+    end
+  end
+end
