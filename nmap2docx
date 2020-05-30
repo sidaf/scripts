@@ -2,10 +2,28 @@
 
 $stderr.sync = true
 
-require 'nmap/xml'
-require 'sablon'
+begin
+  require 'nmap/xml'
+rescue LoadError
+  puts "The ruby-nmap gem could not be loaded, is the latest version installed?"
+  puts "-> gem install ruby-nmap"
+  exit
+end
+begin
+  require 'sablon'
+rescue LoadError
+  puts "The sablon gem could not be loaded, is the latest version installed?"
+  puts "-> gem install sablon"
+  exit
+end
+begin
+  require "docopt"
+rescue LoadError
+  puts "The docopt gem could not be loaded, is the latest version installed?"
+  puts "-> gem install docopt"
+  exit
+end
 require 'csv'
-require "docopt"
 require "set"
 
 doc = <<DOCOPT
@@ -36,13 +54,13 @@ end
 
 options['<xml>'].each do |file|
   if not File.exists?(file)
-    puts "[!] #{file} does not exist!"
+    STDERR.puts "[!] #{file} does not exist!"
     exit 1
   end
 end
 
 if options['--hostnames'] and not File.exists?(options['--hostnames'])
-  puts "#{options['--hostnames']} does not exist!"
+  STDERR.puts "#{options['--hostnames']} does not exist!"
   exit 1
 end
 

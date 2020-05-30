@@ -1,0 +1,162 @@
+#!/usr/bin/env ruby
+
+$stderr.sync = true
+
+begin
+  require 'ruby-nessus'
+rescue LoadError
+  STDERR.puts "The ruby-nessus gem could not be loaded, is the latest version installed?"
+  STDERR.puts "-> git clone https://github.com/mephux/ruby-nessus"
+  STDERR.puts "-> cd ruby-nessus && gem build ruby-nessus.gemspec && gem install ruby-nessus-*.gem"
+  exit
+end
+begin
+  require 'sablon'
+rescue LoadError
+  STDERR.puts "The sablon gem could not be loaded, is the latest version installed?"
+  STDERR.puts "-> gem install sablon"
+  exit
+end
+begin
+  require "docopt"
+rescue LoadError
+  STDERR.puts "The docopt gem could not be loaded, is the latest version installed?"
+  STDERR.puts "-> gem install docopt"
+  exit
+end
+
+doc = <<DOCOPT
+This script accepts Nesses scan results and generates a Word document containing the 
+discovered vulnerabilities listed by severity. Informational severity vulnerabilities 
+are ignored by default.
+
+Usage:
+  #{__FILE__} -o <output> <nessus>...
+  #{__FILE__} -o <output> [--critical] [--high] [--medium] [--low] [--info] <nessus>...
+  #{__FILE__} -o <output> [--all] <nessus>...
+  #{__FILE__} -h | --help
+
+Options:
+  -o, --output=<output>    The generated document.
+  --all                    Shorthand to include all severity levels.
+  --critical               Output critical severity vulnerabilities.
+  --high                   Output high severity vulnerabilities.
+  --medium                 Output medium severity vulnerabilities.
+  --low                    Output low severity vulnerabilities.
+  --info                   Output info severity vulnerabilities.
+  -h, --help               Show this output.
+
+DOCOPT
+
+begin
+  options = Docopt::docopt(doc)
+rescue Docopt::Exit => e
+  STDERR.puts e.message
+  exit
+end
+
+# check arguments
+
+options['<nessus>'].each do |file|
+  if not File.exists?(file)
+    STDERR.puts "[!] #{file} does not exist!"
+    exit 1
+  end
+end
+
+# variables
+
+findings = Hash.new
+criticals = Array.new
+highs = Array.new
+mediums = Array.new
+lows = Array.new
+informationals = Array.new
+
+# process nessus files
+
+# title
+# severity
+# cvss
+# description
+# remediation
+# reference
+# systems affected
+# notes
+
+options['<nessus>'].each do |nessus|
+  puts "[+] Processing #{nessus}"
+  RubyNessus::Parse.new(nessus) do |scan|
+    scan.hosts.each do |host|
+      host.events.each do |event|
+        #next if event.severity == 0 and not options['--all']
+        next if event.severity == 4 and not options['--all'] and (options['--high'] or options['--medium'] or options['--low'] or options['--info'])
+        next if event.severity == 3 and not options['--all'] and (options['--critical'] or options['--medium'] or options['--low'] or options['--info'])
+        next if event.severity == 2 and not options['--all'] and (options['--critical'] or options['--high'] or options['--low'] or options['--info'])
+        next if event.severity == 1 and not options['--all'] and (options['--critical'] or options['--high'] or options['--medium'] or options['--info'])
+        next if event.severity == 0 and not options['--all'] and not options['--info']
+
+        unless findings.include? event.name
+          findings[event.name] = {
+            :title => event.name,
+            :severity => event.severity,
+            :cvss => event.cvss_base_score,
+            :description => event.description.strip.gsub(/[ ]+/, " "), 
+            :remediation => event.solution,
+            :references => Array.new,
+            :affected => Array.new,
+            :notes => Array.new
+          }
+          if event.see_also
+            event.see_also.each do |ref|
+              findings[event.name][:references] << ref
+            end
+          end
+          if event.cve
+            event.cve.each do |cve|
+              findings[event.name][:references] << "http://web.nvd.nist.gov/view/vuln/detail?vulnId=#{cve}"
+            end
+          end
+        end
+
+        unless findings[event.name][:affected].include? host.ip
+          findings[event.name][:affected] << host.ip
+        end
+        findings[event.name][:notes] << {
+          :service => "#{host.ip}:#{event.port.number}/#{event.port.protocol} (#{event.port.service})",
+          :output => event.output ? event.output.strip : "<no output>"
+        }
+      end
+    end
+  end
+end
+
+# build data array ready for import
+
+findings.each do |name, finding|
+  if finding[:severity] == 4
+    criticals << finding
+  elsif finding[:severity] == 3
+    highs << finding
+  elsif finding[:severity] == 2
+    mediums << finding
+  elsif finding[:severity] == 1
+    lows << finding
+  elsif finding[:severity] == 0
+    informationals << finding
+  end
+end
+
+criticals = criticals.sort_by{ |k| k["cvss"] }.reverse!
+highs = highs.sort_by{ |k| k["cvss"] }.reverse!
+mediums = mediums.sort_by{ |k| k["cvss"] }.reverse!
+lows = lows.sort_by{ |k| k["cvss"] }.reverse!
+informationals = informationals.sort_by{ |k| k["cvss"] }.reverse!
+
+# import data into word document template
+
+puts "[+] Generating document #{options['--output']} ..."
+context = { :criticals => criticals, :highs => highs, :mediums => mediums, 
+            :lows => lows, :informationals => informationals }
+template = Sablon.template(File.expand_path(File.dirname(__FILE__) + "/nessus2docx.docx"))
+template.render_to_file File.expand_path(options['--output']), context

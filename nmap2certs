@@ -2,8 +2,20 @@
 
 $stderr.sync = true
 
-require 'nmap/xml'
-require "docopt"
+begin
+  require 'nmap/xml'
+rescue LoadError
+  STDERR.puts "The ruby-nmap gem could not be loaded, is the latest version installed?"
+  STDERR.puts "-> gem install ruby-nmap"
+  exit
+end
+begin
+  require "docopt"
+rescue LoadError
+  STDERR.puts "The docopt gem could not be loaded, is the latest version installed?"
+  STDERR.puts "-> gem install docopt"
+  exit
+end
 require "set"
 
 doc = <<DOCOPT
@@ -29,7 +41,7 @@ end
 
 options['<xml>'].each do |file|
   if not File.exists?(file)
-    puts "[!] #{file} does not exist!"
+    STDERR.puts "[!] #{file} does not exist!"
     exit 1
   end
 end

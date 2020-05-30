@@ -2,8 +2,13 @@
 
 $stderr.sync = true
 
-require 'rex/socket'
-require 'optparse'
+begin
+  require 'rex/socket'
+rescue LoadError
+  STDERR.puts "The rex-socket gem could not be loaded, is the latest version installed?"
+  STDERR.puts "-> gem install rex-socket"
+  exit
+end
 
 ARGF.each_line do |range|
   ip_list = Rex::Socket::RangeWalker.new(range)
