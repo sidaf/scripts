@@ -5,7 +5,7 @@ $stderr.sync = true
 begin
   require 'rex/socket'
 rescue LoadError
-  STDERR.puts "The rex-socket gem could not be loaded, is the latest version installed?"
+  STDERR.puts "The rex-socket gem could not be loaded, is it installed?"
   STDERR.puts "-> gem install rex-socket"
   exit
 end

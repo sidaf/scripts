@@ -5,21 +5,21 @@ $stderr.sync = true
 begin
   require 'nmap/xml'
 rescue LoadError
-  STDERR.puts "The ruby-nmap gem could not be loaded, is the latest version installed?"
+  STDERR.puts "The ruby-nmap gem could not be loaded, is it installed?"
   STDERR.puts "-> gem install ruby-nmap"
   exit
 end
 begin
   require "docopt"
 rescue LoadError
-  STDERR.puts "The docopt gem could not be loaded, is the latest version installed?"
+  STDERR.puts "The docopt gem could not be loaded, is it installed?"
   STDERR.puts "-> gem install docopt"
   exit
 end
 require "set"
 
 doc = <<DOCOPT
-Parse nmap xml output and print out certificates discovered using the ssl-cert NSE script.
+Parse nmap xml output and print out certificates enuemrated by the ssl-cert NSE script.
 
 Usage:
   #{__FILE__} <xml>...

@@ -5,21 +5,21 @@ $stderr.sync = true
 begin
   require 'nmap/xml'
 rescue LoadError
-  puts "The ruby-nmap gem could not be loaded, is the latest version installed?"
+  puts "The ruby-nmap gem could not be loaded, is it installed?"
   puts "-> gem install ruby-nmap"
   exit
 end
 begin
   require 'sablon'
 rescue LoadError
-  puts "The sablon gem could not be loaded, is the latest version installed?"
+  puts "The sablon gem could not be loaded, is it installed?"
   puts "-> gem install sablon"
   exit
 end
 begin
   require "docopt"
 rescue LoadError
-  puts "The docopt gem could not be loaded, is the latest version installed?"
+  puts "The docopt gem could not be loaded, is it installed?"
   puts "-> gem install docopt"
   exit
 end

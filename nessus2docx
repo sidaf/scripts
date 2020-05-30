@@ -13,14 +13,14 @@ end
 begin
   require 'sablon'
 rescue LoadError
-  STDERR.puts "The sablon gem could not be loaded, is the latest version installed?"
+  STDERR.puts "The sablon gem could not be loaded, is it installed?"
   STDERR.puts "-> gem install sablon"
   exit
 end
 begin
   require "docopt"
 rescue LoadError
-  STDERR.puts "The docopt gem could not be loaded, is the latest version installed?"
+  STDERR.puts "The docopt gem could not be loaded, is it installed?"
   STDERR.puts "-> gem install docopt"
   exit
 end
