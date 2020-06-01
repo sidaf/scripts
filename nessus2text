@@ -8,39 +8,39 @@ rescue LoadError
   STDERR.puts "The ruby-nessus gem could not be loaded, is the latest version installed?"
   STDERR.puts "-> git clone https://github.com/mephux/ruby-nessus"
   STDERR.puts "-> cd ruby-nessus && gem build ruby-nessus.gemspec && gem install ruby-nessus-*.gem"
-  exit
+  exit 1
 end
 begin
   require "docopt"
 rescue LoadError
   STDERR.puts "The docopt gem could not be loaded, is it installed?"
   STDERR.puts "-> gem install docopt"
-  exit
+  exit 1
 end
 begin
   require 'terminal-table'
 rescue LoadError
   STDERR.puts "The terminal-table gem could not be loaded, is it installed?"
   STDERR.puts "-> gem install terminal-table"
-  exit
+  exit 1
 end
 begin
   require 'rex/text'
 rescue LoadError
   STDERR.puts "The rex-text gem could not be loaded, is it installed?"
   STDERR.puts "-> gem install rex-text"
-  exit
+  exit 1
 end
 
 doc = <<DOCOPT
-This script accepts Nesses scan results prints the reults in textual format.
+This script accepts Nesses scan results and prints the findings in textual format.
 Informational severity findings are not printed by default.
 
 Usage:
   #{__FILE__} list [--name=<regex>] [--family=<regex>] <nessus>...
   #{__FILE__} list [--name=<regex>] [--family=<regex>] [--critical] [--high] [--medium] [--low] [--info] <nessus>...
   #{__FILE__} list [--name=<regex>] [--family=<regex>] [--all] <nessus>...
-  #{__FILE__} show <identifier> [--output] <nessus>...
+  #{__FILE__} show --id=<pluginid> [--output] <nessus>...
   #{__FILE__} -h | --help
 
 Options:
@@ -52,7 +52,7 @@ Options:
   --medium                 Output medium severity findings.
   --low                    Output low severity findings.
   --info                   Output info severity findings.  
-  --output                 Output Nessus plugin output.   
+  --output                 Output Nessus plugin output.
   -h, --help               Show this output.
 
 DOCOPT
@@ -61,7 +61,7 @@ begin
   options = Docopt::docopt(doc)
 rescue Docopt::Exit => e
   STDERR.puts e.message
-  exit
+  exit 1
 end
 
 # check arguments
@@ -92,10 +92,10 @@ options['<nessus>'].each do |nessus|
         next if event.severity == 3 and not options['--all'] and (options['--critical'] or options['--medium'] or options['--low'] or options['--info'])
         next if event.severity == 2 and not options['--all'] and (options['--critical'] or options['--high'] or options['--low'] or options['--info'])
         next if event.severity == 1 and not options['--all'] and (options['--critical'] or options['--high'] or options['--medium'] or options['--info'])
-        next if event.severity == 0 and not options['--all'] and not options['--info']
+        next if event.severity == 0 and not options['--all'] and not options['--info'] and not options['--id']
 
-        unless findings.include? event.name
-          findings[event.name] = {
+        unless findings.include? event.id
+          findings[event.id] = {
             :id => event.id,
             :name => event.name,
             :family => event.family,
@@ -109,21 +109,21 @@ options['<nessus>'].each do |nessus|
           }
           if event.see_also
             event.see_also.each do |ref|
-              findings[event.name][:references] << ref
+              findings[event.id][:references] << ref
             end
           end
           if event.cve
             event.cve.each do |cve|
-              findings[event.name][:references] << "http://web.nvd.nist.gov/view/vuln/detail?vulnId=#{cve}"
+              findings[event.id][:references] << "http://web.nvd.nist.gov/view/vuln/detail?vulnId=#{cve}"
             end
           end
         end
 
         affected = "#{host.ip}:#{event.port.number} / #{event.port.protocol} / #{event.port.service}"
-        unless findings[event.name][:affected].include? affected
-          findings[event.name][:affected] << affected
+        unless findings[event.id][:affected].include? affected
+          findings[event.id][:affected] << affected
         end
-        findings[event.name][:output] << {
+        findings[event.id][:output] << {
           :service => affected,
           :output => event.output ? event.output.strip : nil
         }
@@ -134,7 +134,7 @@ end
 
 # build data array ready for output
 
-findings.each do |name, finding|
+findings.each do |id, finding|
   if finding[:severity] == 4
     criticals << finding
   elsif finding[:severity] == 3
@@ -173,6 +173,7 @@ if options['list']
     elsif finding[:severity] == 0
       severity = 'Info'
     end
+
     row = [finding[:id], severity, finding[:name], finding[:family], finding[:output].length]
 
     unless options['--name'] or options['--family']
@@ -205,11 +206,11 @@ if options['list']
   rows.each do |row|
     table << row
   end
+  table.sort_index = -1
   table.print
-  #puts Terminal::Table.new :headings => ['ID', 'Severity', 'Name', 'Family', '#'], :rows => rows
 elsif options['show']
   results.each do |finding|
-    if finding[:id] == options['<identifier>'].to_i
+    if finding[:id] == options['--id'].to_i
 
       if finding[:severity] == 4
         severity = 'Critical'

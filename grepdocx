@@ -1,0 +1,77 @@
+#!/usr/bin/env ruby
+
+$stderr.sync = true
+
+begin
+  require "docopt"
+rescue LoadError
+  STDERR.puts "The docopt gem could not be loaded, is it installed?"
+  STDERR.puts "-> gem install docopt"
+  exit 1
+end
+begin
+  require 'docx'
+rescue LoadError
+  STDERR.puts "The docx gem could not be loaded, is it installed?"
+  STDERR.puts "-> gem install docx"
+  exit 1
+end
+
+doc = <<DOCOPT
+Search any given Microsoft Word documents, selecting paragraphs that match a pattern.
+
+Note that tables, headings etc are not searched, only paragraphs. 
+
+Usage:
+  #{__FILE__} [-i] <pattern> <docx>...
+  #{__FILE__} -h | --help
+
+Options:
+  -i, --ignore-case        Perform case insensitive matching.
+  -h, --help               Show this output.
+
+DOCOPT
+
+begin
+  options = Docopt::docopt(doc)
+rescue Docopt::Exit => e
+  STDERR.puts e.message
+  exit 1
+end
+
+# check arguments
+
+options['<docx>'].each do |file|
+  if not File.exists?(file)
+    STDERR.puts "[!] #{file} does not exist!"
+    exit 1
+  end
+end
+
+options['<docx>'].each do |file|
+  begin
+    docx = Docx::Document.open(file)
+  rescue
+    STDERR.puts "[!] Error opening #{file}"
+    next
+  end
+  docx.each_paragraph do |p|
+    if options['--ignore-case']
+      if p.to_s.match(/#{options['<pattern>']}/i)
+        if options['<docx>'].length > 1
+          puts "#{file}: #{p.to_s}"
+        else
+          puts p
+        end
+      end
+    else
+      if p.to_s.match(/#{options['<pattern>']}/)
+        if options['<docx>'].length > 1
+          puts "#{file}: #{p.to_s}"
+        else
+          puts p
+        end
+      end
+    end
+  end
+end
