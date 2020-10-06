@@ -55,21 +55,33 @@ targets = Hash.new
 options['<xml>'].each do |nmap|
   Nmap::XML.new(nmap) do |xml|
     xml.each_host do |host|
+
+      unless targets.include? host.ip
+        targets[host.ip] = SortedSet.new
+      end
+
       host.each_port do |port|
         port.scripts.each do |name, output|
           next unless name == "ssl-cert"
           output.each_line do |line|
-            cert = String.new
             if line.include? "Subject: commonName="
-              cert = line.split("=").last
-            elsif line.include? "Subject Alternative Name:"
-              cert = line.split(":").last
-            end
-            unless cert.empty?
-              unless targets.key? host.ip
-                targets[host.ip] = SortedSet.new
+              cert = line.split("=", 2).last.strip
+              if cert.include? "/"
+                targets[host.ip] << cert.split("/", 2).first
+              else
+                targets[host.ip] << cert
               end
-              targets[host.ip] << cert
+            elsif line.include? "Subject Alternative Name:"
+              cert = line.split(":", 2).last.strip
+              if cert.include? ","
+                cert.split(",").each do |san|
+                  if san.include? "DNS:"
+                    targets[host.ip] << san.split(":").last.strip
+                  end
+                end
+              else
+                targets[host.ip] << cert.strip
+              end
             end
           end
         end

@@ -31,13 +31,13 @@ discovered findings listed by severity. Informational severity findings are
 ignored by default.
 
 Usage:
-  #{__FILE__} -o <output> <nessus>...
-  #{__FILE__} -o <output> [--critical] [--high] [--medium] [--low] [--info] <nessus>...
-  #{__FILE__} -o <output> [--all] <nessus>...
+  #{__FILE__} -o <docx> <nessus>...
+  #{__FILE__} -o <docx> [--critical] [--high] [--medium] [--low] [--info] <nessus>...
+  #{__FILE__} -o <docx> [--all] <nessus>...
   #{__FILE__} -h | --help
 
 Options:
-  -o, --output=<output>    The generated document.
+  -o, --output=<docx>    The generated document.
   --all                    Shorthand to output all severity levels.
   --critical               Output critical severity findings.
   --high                   Output high severity findings.
@@ -122,6 +122,7 @@ options['<nessus>'].each do |nessus|
         unless findings[event.id][:affected].include? host.ip
           findings[event.id][:affected] << host.ip
         end
+        
         findings[event.id][:notes] << {
           :service => "#{host.ip}:#{event.port.number}/#{event.port.protocol} (#{event.port.service})",
           :output => event.output ? event.output.strip : "<no output>"

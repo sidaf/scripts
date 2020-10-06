@@ -33,11 +33,11 @@ service. Only hosts with accessible ports are included. A CSV file
 containing additional IP address and hostname pairs can also be specified.
 
 Usage:
-  #{__FILE__} -o <output> [-n <hostnames>] <xml>...
+  #{__FILE__} -o <docx> [-n <hostnames>] <xml>...
   #{__FILE__} -h | --help
 
 Options:
-  -o, --output=<output>         The generated document.
+  -o, --output=<docx>         The generated document.
   -n, --hostnames=<hostnames>   CSV file containing IP addresses and hostnames.
   -h, --help                    Show this output.
 
