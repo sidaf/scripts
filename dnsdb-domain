@@ -8,10 +8,6 @@ import os
 import sys
 import argparse
 import socket
-import dns
-import dns.resolver
-import dns.reversename
-import time
 import json
 from multiprocessing import Pool
 #from multiprocessing.dummy import Pool  # utilise threads rather than subprocesses
