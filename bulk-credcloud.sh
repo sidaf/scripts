@@ -5,7 +5,6 @@ if [[ $# -gt 1 || "$*" == "--help" || "$*" == "-h" ]]; then
   exit 1
 fi
 
-URLS=$1
 if [[ "$OSTYPE" =~ ^darwin ]]; then
   CREDCLOUD="$HOME/Downloads/Tools/Credcloud/credcloud-darwin"
 else
