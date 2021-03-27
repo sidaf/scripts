@@ -28,7 +28,7 @@ NORMAL="\e[0m"
 for DOMAIN in $(cat ${DOMAINS}); do
   echo -ne "${BLUE}[>]${NORMAL} ${BOLD}${DOMAIN}${NORMAL} ... "
   mkdir -p ${DOMAIN}
-  ${CREDCLOUD} -o ${DOMAIN}/output.csv ${DOMAIN} 2> /dev/null
+  ${CREDCLOUD} -o ${DOMAIN}/output.csv ${DOMAIN} > /dev/null
   cat ${DOMAIN}/output.csv | cut -d, -f3 | sed 's/"//g' | grep -v "^email$" | sort -fu > ${DOMAIN}/emails.list
   cat ${DOMAIN}/output.csv | cut -d, -f3 | sed 's/"//g' | grep -v "^email$" | cut -d'@' -f1 | sort -fu > ${DOMAIN}/users.list
   cat ${DOMAIN}/output.csv | cut -d, -f3,6 | grep -v '""' | sed 's/"//g' | grep -v "^email,plaintext$" | tr ',' ' ' | sort -u > ${DOMAIN}/combo.list
