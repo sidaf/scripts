@@ -13,7 +13,7 @@ BOLD="\e[1m"
 NORMAL="\e[0m"
 
 if [[ -z "${HUNTER_API_KEY}" ]]; then
-  echo -e "${RED}[X]${NORMAL} The HUNTER_API_KEY environment variable has not been set!"
+  echo -e "${RED}[-]${NORMAL} The ${BOLD}HUNTER_API_KEY${NORMAL} environment variable has not been set!"
   exit 1
 fi
 

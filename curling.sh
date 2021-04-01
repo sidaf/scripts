@@ -18,7 +18,7 @@ URLS=$1
 PROXY=$2
 
 if [[ ! -f "${URLS}" ]]; then
-  echo -e "${RED}[X]${NORMAL} The file ${BOLD}${URLS}${NORMAL} does not exist!"
+  echo -e "${RED}[-]${NORMAL} The file ${BOLD}${URLS}${NORMAL} does not exist!"
   exit 1
 fi
 
