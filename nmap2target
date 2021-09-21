@@ -1,16 +1,15 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python3
 
 ###########
 # IMPORTS #
 ###########
 
-from __future__ import print_function
 import sys
 import argparse
 import os
 import socket
 import re
-from urlparse import urlparse
+from urllib.parse import urlparse
 try:
     import xml.etree.cElementTree as ElementTree
 except ImportError:
@@ -190,7 +189,7 @@ if __name__ == '__main__':
 
     if args.hostnames:
         with open(args.hostnames) as fp:
-            hostnames = [line.strip() for line in fp if len(line.strip())>0 and line[0] is not '#']
+            hostnames = [line.strip() for line in fp if len(line.strip())>0 and line[0] != '#']
     else:
         hostnames = list()
 
