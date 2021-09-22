@@ -1,254 +1,292 @@
-#!/usr/bin/env python2
+""" Example...
 
-###########
-# IMPORTS #
-###########
+from nessus import Scan, Host, Event
 
-from __future__ import print_function
-import requests
-import json
-import time
-import sys
+xml = open("vulnerability-analysis/nessus/example.nessus").read()
+scan = Scan(xml)
 
+print(f"title:  {scan.title()}")
+print(f"policy: {scan.policy()}")
 
-#############
-# FUNCTIONS #
-#############
+for host in scan.hosts():
+    
+    print(f"name:     {host.name()}")
+    print(f"hostname: {host.hostname()}")
+    print(f"address:  {host.address()}")
+    
+    for event in host.events():
+        
+        print(f"plugin_name: {event.plugin_name()}")
+        print(f"port:        {event.port()}")
+        print(f"severity:    {event.severity()}")
+        print(f"plugin_id:   {event.plugin_id()}")
+        print(f"output:      {event.output()}")
+"""
 
-def error(*objects):
-    print("[!]", *objects, file=sys.stderr)
+from lxml import etree as ElementTree
 
+class Event:
+    
+    def __init__(self, element):
+        self.tree = ElementTree.ElementTree(element)
+    
+    def port(self):
+        return self.tree.xpath('@port')[0], self.tree.xpath('@protocol')[0], self.tree.xpath('@svc_name')[0]
+    
+    def severity(self):
+         return int(self.tree.xpath('@severity')[0])
+    
+    def informational(self):
+        return True if self.severity() == 0 else False
+    
+    def low(self):
+        return True if self.severity() == 1 else False
+    
+    def medium(self):
+        return True if self.severity() == 2 else False
+    
+    def high(self):
+        return True if self.severity() == 3 else False
+    
+    def critical(self):
+        return True if self.severity() == 4 else False
+    
+    def plugin_id(self):
+        return int(self.tree.xpath('@pluginID')[0])
+    
+    def plugin_name(self):
+        result = self.tree.xpath('@pluginName')
+        if len(result) > 0:
+            return self.tree.xpath('@pluginName')[0]
+        return None
+    
+    def plugin_family(self):
+        return self.tree.xpath('@pluginFamily')[0]
+    
+    def plugin_type(self):
+        return self.tree.xpath('plugin_type')[0].text
+    
+    def plugin_version(self):
+        return self.tree.xpath('script_version')[0].text
+    
+    def synopsis(self):
+        return self.tree.xpath('synopsis')[0].text
+    
+    def description(self):
+        return self.tree.xpath('description')[0].text
+    
+    def solution(self):
+        return self.tree.xpath('solution')[0].text
+    
+    def risk(self):
+        return self.tree.xpath('risk_factor')[0].text
+    
+    def output(self):
+        return self.tree.xpath('plugin_output')[0].text
+    
+    def references(self):
+        result = self.tree.xpath('see_also')
+        if len(result) > 0:
+            return self.tree.xpath('see_also')[0].text.split('\n')
+        return None
 
-def info(*objects):
-    print("[+]", *objects, file=sys.stdout)
+    def vuln_publication_date(self):
+        result = self.tree.xpath('vuln_publication_date')
+        if len(result) > 0:
+            return self.tree.xpath('vuln_publication_date')[0].text
+        return None
+    
+    def patch_publication_date(self):
+        result = self.tree.xpath('patch_publication_date')
+        if len(result) > 0:
+            return self.tree.xpath('patch_publication_date')[0].text
+        return None
+    
+    def cvss_base_score(self):
+        result = self.tree.xpath('cvss_base_score')
+        if len(result) > 0:
+            return float(self.tree.xpath('cvss_base_score')[0].text)
+        return None
+    
+    def cvss_temporal_score(self):
+        result = self.tree.xpath('cvss_temporal_score')
+        if len(result) > 0:
+            return float(self.tree.xpath('cvss_temporal_score')[0].text)
+        return None
+    
+    def cvss_vector(self):
+        result = self.tree.xpath('cvss_vector')
+        if len(result) > 0:
+            return self.tree.xpath('cvss_vector')[0].text
+        return None
+    
+    def cve(self):
+        cves = []
+        results = self.tree.xpath('cve')
+        for item in results:
+            cves.append(item.text)
+        if len(cves) > 0:
+            return cves
+        return None
+    
+    def bid(self):
+        bids = []
+        results = self.tree.xpath('bid')
+        for item in results:
+            bids.append(item.text)
+        if len(bids) > 0:
+            return bids
+        return None
+    
+    def xref(self):
+        xrefs = []
+        results = self.tree.xpath('xref')
+        for item in results:
+            xrefs.append(item.text)
+        if len(xrefs) > 0:
+            return xrefs
+        return None
+    
+    def cpe(self):
+        cpes = []
+        results = self.tree.xpath('cpe')
+        for item in results:
+            cpes.append(item.text)
+        if len(cpes) > 0:
+            return cpes
+        return None
 
+    def exploitability_ease(self):
+        result = self.tree.xpath('exploitability_ease')
+        if len(result) > 0:
+            return self.tree.xpath('exploitability_ease')[0].text
+        return None
+    
+    def exploit_available(self):
+        result = self.tree.xpath('exploit_available')
+        if len(result) > 0:
+            return self.tree.xpath('exploit_available')[0].text == "true"
+        return False
+    
+    def exploit_framework_canvas(self):
+        result = self.tree.xpath('exploit_framework_canvas')
+        if len(result) > 0:
+            return self.tree.xpath('exploit_framework_canvas')[0].text == "true"
+        return False
+    
+    def canvas_package(self):
+        result = self.tree.xpath('canvas_package')
+        if len(result) > 0:
+            return self.tree.xpath('canvas_package')[0].text
+        return None
+    
+    def exploit_framework_metasploit(self):
+        result = self.tree.xpath('exploit_framework_metasploit')
+        if len(result) > 0:
+            return self.tree.xpath('exploit_framework_metasploit')[0].text == "true"
+        return False
+    
+    def metasploit_name(self):
+        result = self.tree.xpath('metasploit_name')
+        if len(result) > 0:
+            return self.tree.xpath('metasploit_name')[0].text
+        return None
+    
+    def exploit_framework_core(self):
+        result = self.tree.xpath('exploit_framework_core')
+        if len(result) > 0:
+            return self.tree.xpath('exploit_framework_core')[0].text == "true"
+        return False
+    
+    
+class Host:
+    
+    def __init__(self, element):
+        self.tree = ElementTree.ElementTree(element)
+    
+    def name(self):
+        return self.tree.xpath('@name')[0]
+    
+    def hostname(self):
+        result = self.tree.xpath('//tag[@name="host-fqdn"]')
+        if len(result) > 0:
+            return result[0].text
+        return None
+    
+    def address(self):
+        result = self.tree.xpath('//tag[@name="host-ip"]')
+        if len(result) > 0:
+            return result[0].text
+        return None
+    
+    def rdns(self):
+        result = self.tree.xpath('//tag[@name="host-rdns"]')
+        if len(result) > 0:
+            return result[0].text
+        return None
+    
+    def netbios_name(self):
+        result = self.tree.xpath('//tag[@name="netbios-name"]')
+        if len(result) > 0:
+            return result[0].text
+        return None
+    
+    def mac_addr(self):
+        result = self.tree.xpath('//tag[@name="mac-address"]')
+        if len(result) > 0:
+            return result[0].text
+        return None
+    
+    def os_name(self):
+        result = self.tree.xpath('//tag[@name="operating-system"]')
+        if len(result) > 0:
+            return result[0].text.split('\n')
+        return None
 
-###########
-# Objects #
-###########
+    def ports(self):
+        result = self.tree.xpath('//ReportItem/@port')
+        if len(result) > 0:
+            return sorted(list(set(self.tree.xpath('//ReportItem/@port'))))
+        return None
+    
+    def services(self):
+        result = self.tree.xpath('//ReportItem/@svc_name')
+        if len(result) > 0:
+            return sorted(list(set(self.tree.xpath('//ReportItem/@svc_name'))))
+        return None
+    
+    def events(self):
+        return (Event(element) for element in self.tree.xpath('//ReportItem'))
 
-class SSLException(Exception):
-    pass
-
-
-class HttpException(Exception):
-    pass
-
-
-class Scanner(object):
-    def __init__(self, url, username, password, verify=True):
-        self.url = url
-        self.username = username
-        self.password = password
-        self.verify = verify
-        if not verify:
-            from requests.packages.urllib3.exceptions import InsecureRequestWarning
-            requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
-        self.token = ''
-
-
-    def login(self):
-        data = {'username': self.username, 'password': self.password}
-        res = self.connect('POST', '/session', data, retry=False)
-        self.token = res['token']
-
-
-    def connect(self, method, resource, data=None, retry=True):
-        headers = {'X-Cookie': 'token={0}'.format(self.token),
-                   'content-type': 'application/json'}
-
-        data = json.dumps(data)
-
-        built_url = '{0}{1}'.format(self.url, resource)
-
-        try:
-            if method == 'POST':
-                r = requests.post(built_url, data=data, headers=headers,
-                                  verify=self.verify)
-            elif method == 'PUT':
-                r = requests.put(built_url, data=data, headers=headers,
-                                 verify=self.verify)
-            elif method == 'DELETE':
-                r = requests.delete(built_url, data=data, headers=headers,
-                                    verify=self.verify)
-            else:
-                r = requests.get(built_url, params=data, headers=headers,
-                                 verify=self.verify)
-        except requests.exceptions.SSLError as ssl_error:
-            raise SSLException('%s' % ssl_error)
-
-        if r.status_code == 401 and retry:
-            self.login()
-            return self.connect(method, resource, data)
-        elif r.status_code != 200:
-            e = r.json()
-            raise HttpException('%s for %s %s [%s]' %
-                                (e['error'], method, built_url, r.status_code))
-
-        # When downloading a scan we need the raw contents not the JSON data.
-        if 'download' in resource:
-            return r.content
-        else:
-            if r.text:
-                return r.json()
-            return {}
-
-
-    def list_scans(self):
-        res = self.connect('GET', '/scans')
-        return res['scans']
-
-
-    def get_scan(self, scan_id):
-        res = self.connect('GET', '/scans/{0}'.format(scan_id))
-        return res['info']
-
-
-    def get_policy(self, policy_id):
-        res = self.connect('GET', '/policies/{0}'.format(policy_id))
-        return res
-
-
-    def get_policy_template(self, name):
-        res = self.connect('GET', '/editor/policy/templates')
-        for template in res['templates']:
-            if template['name'] == name:
-                return template
-
-
-    def get_scan_template(self, name):
-        res = self.connect('GET', '/editor/scan/templates')
-        for template in res['templates']:
-            if template['name'] == name:
-                return template
-
-
-    def create_policy(self, name, custom_settings=None, template='advanced'):
-        template = self.get_policy_template(template)
-        settings = {"name": name,
-                    "description": "Auto-generated",
-                    "ping_the_remote_host": "no",
-                    "unscanned_closed": "yes",
-                    "portscan_range": "default",
-                    "ssh_netstat_scanner": "no",
-                    "wmi_netstat_scanner": "no",
-                    "snmp_scanner": "no",
-                    "only_portscan_if_enum_failed": "no",
-                    "syn_scanner": "yes",
-                    "syn_firewall_detection": "Automatic (normal)",
-                    "svc_detection_on_all_ports": "yes",
-                    "detect_ssl": "yes",
-                    "ssl_prob_ports": "Known SSL ports",
-                    "cert_expiry_warning_days": "60",
-                    "enumerate_all_ciphers": "yes",
-                    "check_crl": "no",
-                    "scan_webapps": "yes",
-                    "webcrawler_max_pages": "10",
-                    "webcrawl_max_depth": "10",
-                    "report_superseded_patches": "yes",
-                    "silent_dependencies": "no",
-                    "log_live_hosts": "yes",
-                    "display_unreachable_hosts": "yes",
-                    "safe_checks": "yes",
-                    "reduce_connections_on_congestion": "yes",
-                    "use_kernel_congestion_detection": "yes"}
-        if custom_settings:
-            settings.update(custom_settings)
-        data = {"settings": settings, "uuid": template['uuid']}
-        res = self.connect('POST', '/policies', data)
-        return res['policy_id']
-
-
-    def create_scan_from_policy(self, name, targets, policy_id,
-                                custom_settings=None):
-        policy = self.get_policy(policy_id)
-        settings = {"name": name,
-                    "enabled": "true",
-                    "launch": "ON_DEMAND",
-                    "description": "Auto-generated",
-                    "policy_id": policy_id,
-                    "text_targets": targets}
-        if custom_settings:
-            settings.update(custom_settings)
-        data = {"uuid": policy['uuid'], "settings": settings}
-        res = self.connect('POST', '/scans', data)
-        return res['scan']['id']
-
-
-    def create_scan(self, name, targets, ports='default', custom_settings=None,
-                    template='advanced'):
-        template = self.get_scan_template(template)
-        settings = {"name": name,
-                    "enabled": "true",
-                    "launch": "ON_DEMAND",
-                    "description": "Auto-generated",
-                    "text_targets": targets,
-                    "ping_the_remote_host": "no",
-                    "unscanned_closed": "yes",
-                    "portscan_range": ports,
-                    "ssh_netstat_scanner": "no",
-                    "wmi_netstat_scanner": "no",
-                    "snmp_scanner": "no",
-                    "only_portscan_if_enum_failed": "no",
-                    "syn_scanner": "yes",
-                    "syn_firewall_detection": "Automatic (normal)",
-                    "svc_detection_on_all_ports": "yes",
-                    "detect_ssl": "yes",
-                    "ssl_prob_ports": "Known SSL ports",
-                    "cert_expiry_warning_days": "60",
-                    "enumerate_all_ciphers": "yes",
-                    "check_crl": "no",
-                    "scan_webapps": "yes",
-                    "webcrawler_max_pages": "10",
-                    "webcrawl_max_depth": "10",
-                    "report_superseded_patches": "yes",
-                    "silent_dependencies": "no",
-                    "log_live_hosts": "yes",
-                    "display_unreachable_hosts": "yes",
-                    "safe_checks": "yes",
-                    "reduce_connections_on_congestion": "yes",
-                    "use_kernel_congestion_detection": "yes"}
-        if custom_settings:
-            settings.update(custom_settings)
-        data = {"uuid": template['uuid'], "settings": settings}
-        res = self.connect('POST', '/scans', data)
-        return res['scan']['id']
-
-
-    def start_scan(self, scan_id):
-        res = self.connect('POST', '/scans/{0}/launch'.format(scan_id))
-        return res['scan_uuid']
-
-
-    def download_report(self, scan_id, filename):
-        # export
-        res = self.connect('POST', '/scans/{0}/export'.format(scan_id),
-                           {"format": "nessus"})
-        file_id = res['file']
-        res = self.connect('GET',
-                           '/scans/{0}/export/{1}/status'.format(scan_id,
-                                                                 file_id))
-        while not res['status'] == 'ready':
-            time.sleep(5)
-            res = self.connect('GET',
-                               '/scans/{0}/export/{1}/status'.format(scan_id,
-                                                                     file_id))
-        # download
-        report = self.connect('GET',
-                              '/scans/{0}/export/{1}/download'.format(scan_id,
-                                                                      file_id))
-        # save
-        with open(filename, 'w') as out_file:
-            out_file.write(report)
-
-
-    def delete_scan(self, scan_id):
-        self.connect('DELETE', '/scans/{0}'.format(scan_id))
-
-
-    def delete_policy(self, name):
-        res = self.connect('GET', '/policies')
-        for policy in res['policies']:
-            if policy['name'] == name:
-                self.connect('DELETE', '/policies/{0}'.format(policy['id']))
-                break
+    
+class Scan:
+    
+    def __init__(self, xml):
+        self.tree = ElementTree.ElementTree(ElementTree.fromstring(xml))
+    
+    def title(self):
+        result = self.tree.xpath('Report/@name')
+        if len(result) > 0:
+            return result[0]
+        return None
+    
+    def policy(self):
+        result = self.tree.xpath('Policy/policyName')
+        if len(result) > 0:
+            return result[0].text
+        return None
+    
+    def target_hosts(self):
+        for element in self.tree.xpath('//Preferences/ServerPreferences/preference'):
+            if element[0].text == 'TARGET':
+                return element[1].text.split(',')
+        return None
+    
+    def port_range(self):
+        for element in self.tree.xpath('//Preferences/ServerPreferences/preference'):
+            if element[0].text == 'port_range':
+                return element[1].text.split(',')
+        return None
+    
+    def hosts(self):
+        return (Host(element) for element in self.tree.xpath('//ReportHost'))

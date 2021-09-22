@@ -53,7 +53,7 @@ def whois(address):
         sys.stderr.write(f"{address} => whois response cannot be parsed...is the WHOIS database supported!?\n")
         sys.stderr.flush()
         return
-    
+
     process = False
     result = list()
 
@@ -74,7 +74,7 @@ def whois(address):
         if re_owner and not 'owner' in result[len(result) - 1]:
             if 'owner' not in result[len(result) - 1]:
                 result[len(result) - 1]['owner'] = line.split(":")[1].strip()
-        
+
         re_nname = re.search(nname, line) 
         if re_nname:
             if 'netname' not in result[len(result) - 1]:

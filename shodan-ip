@@ -77,6 +77,9 @@ async def fetch(url, address, session):
                     for hostname in hostnames:
                         sys.stdout.write('%s,%s\n' % (address, hostname))
                         sys.stdout.flush()
+            elif response.status == 404:
+                # No record for address
+                return
             else:
                 sys.stderr.write(f"{url + address} =>  Unexpected response status: {response.status}\n")
     except Exception as e:
