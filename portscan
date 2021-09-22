@@ -14,12 +14,9 @@
 import argparse
 import sys
 import os
-import nmap
 #import masscan
 import subprocess
 import shlex
-import queue
-import threading
 import time
 from xml.dom import pulldom
 import xml

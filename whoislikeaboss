@@ -1,86 +1,62 @@
 #!/usr/bin/env python3
 
-#
-# Orginal: https://labs.portcullis.co.uk/tools/whois-like-a-boss/
-#
-
 ###########
 # IMPORTS #
 ###########
 
 import sys
-import os
-import subprocess
-import re
+from typing import List
 import argparse
-from ipaddress import IPv4Address, IPv4Network, summarize_address_range
+from ipwhois import IPWhois
 from tqdm import tqdm
+from ipaddress import IPv4Address, IPv4Network, summarize_address_range
+from tabulate import tabulate
 
 #############
 # FUNCTIONS #
 #############
 
+def whois(addresses: List[str]) -> List[dict]:
+    results = {}
+    for address in tqdm(addresses, leave=False):
+        ip_network = None
 
-def whois(address):
-    p = subprocess.Popen(['whois', address], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    response = p.communicate()[0].decode()
+        # Check results first
+        ip_address = IPv4Address(address)
+        for tmp_ip_network in results:
+            if ip_address in tmp_ip_network:
+                ip_network = tmp_ip_network
+                break
 
-    if "Copyright LACNIC lacnic.net" in response:
-        mark = "Copyright LACNIC lacnic.net"
-        source = "LACNIC"
-        nrange = "inetnum:"
-        nname = "ownerid:"
-        owner = "owner:"
-    elif "ARIN WHOIS" in response:
-        mark = "ARIN WHOIS"
-        source = "ARIN"
-        nrange = "NetRange:"
-        nname = "NetName:"
-        owner = "(Customer:|OrgName:|Organization:)"
-    elif "RIPE Database" in response:
-        mark = "RIPE Database"
-        source = "RIPE"
-        nrange = "inetnum:"
-        nname = "netname:"
-        owner = "(org-name:|address:|descr:)"
-    elif "whois.apnic.net" in response:
-        mark = "whois.apnic.net"
-        source = "APNIC"
-        nrange = "inetnum:"
-        nname = "netname:"
-        owner = "org-name:"
-    else:
-        sys.stderr.write(f"{address} => whois response cannot be parsed...is the WHOIS database supported!?\n")
-        sys.stderr.flush()
-        return
+        # No existing match, lookup whois
+        if not ip_network:
+            data = IPWhois(address).lookup_whois(inc_nir=True)
 
-    process = False
-    result = list()
+            cidr = data['nets'][-1]['cidr']
+            if ',' in cidr:
+                networks = cidr.split(',')
+                for net in networks:
+                    tmp_ip_network = IPv4Network(net.strip())
+                    if ip_address in tmp_ip_network:
+                        ip_network = tmp_ip_network
+                        break
+                if not ip_network:
+                    sys.stderr.write(f"{address} => hmm, no network object found!\n")
+                    sys.stderr.flush()
+            else:
+                ip_network = IPv4Network(data['nets'][-1]['cidr'])
 
-    for line in response.split("\n"):
-        if mark in line:
-            process = True
+            results[ip_network] = { 
+                'registry': data['asn_registry'],
+                'country': data['asn_country_code'],
+                'owner': data['nets'][-1]['description'],
+                'cidr': str(ip_network),
+                'addresses': [address]
+            }
+        else:
+            results[ip_network]['addresses'].append(address)
 
-        if not process:
-            continue
-
-        re_nrange = re.search(nrange, line)
-        if re_nrange: 
-            result.append({ 'source': source })
-            if 'range' not in result[len(result) - 1]:
-                result[len(result) - 1]['range'] = line.split(":")[1].strip()
-
-        re_owner = re.search(owner, line)     
-        if re_owner and not 'owner' in result[len(result) - 1]:
-            if 'owner' not in result[len(result) - 1]:
-                result[len(result) - 1]['owner'] = line.split(":")[1].strip()
-
-        re_nname = re.search(nname, line) 
-        if re_nname:
-            if 'netname' not in result[len(result) - 1]:
-                result[len(result) - 1]['netname'] = line.split(":")[1].strip()
-
-    return result
+    return list(results.values())
 
 ########
 # MAIN #
@@ -100,9 +76,6 @@ if __name__ == '__main__':
     parser.add_argument('--csv',
                         action='store_true',
                         help='output in CSV format')
-    parser.add_argument('--cidr',
-                        action='store_true',
-                        help='output network range in CIDR notation')
     parser.add_argument('--count',
                         action='store_true',
                         help='output total count instead of a list of addresses')
@@ -126,75 +99,33 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         exit()
 
-    results = dict()
-    
-    for address in tqdm(addresses, leave=False):
-        result = None
+    results = whois(addresses)
 
-        # Check results first
-        ip_address = IPv4Address(address)
-        for ip_network in results.keys():
-            if ip_address in ip_network:
-                result = results[ip_network]
-                break
-
-        # Not in results, query whois
-        if not result:
-            data = whois(address)
-            if data:
-                last_count = 2147483647
-
-                for record in data:
-                    if '/' not in record['range']:
-                        first = IPv4Address(record['range'].split('-')[0].strip())
-                        last = IPv4Address(record['range'].split('-')[1].strip())
-                        networks = list(summarize_address_range(first, last))
-                        for network in networks:
-                            if IPv4Address(address) in network:
-                                if len(list(network.hosts())) < last_count:
-                                    last_count = len(list(network.hosts()))
-                                    result = record
-                                    result['cidr'] = network
-                    else:
-                        if len(list(IPv4Network(record['range']).hosts())) < last_count:
-                            last_count = len(list(IPv4Network(record['range']).hosts()))
-                            result = record
-                            result['cidr'] = IPv4Network(record['range'])
-                if result:
-                    results[result['cidr']] = result
-                else:
-                    sys.stderr.write(f"{address} => ohoh, no network object found, fixme!\n")
-                    sys.stderr.flush()
-                    continue
-            else:
-                sys.stderr.write(f"{address} => ohoh, whois returned no data!\n")
-                sys.stderr.flush()
-                continue
-        
-        if 'addresses' not in results[result['cidr']]:
-            results[result['cidr']]['addresses'] = list()
-            
-        results[result['cidr']]['addresses'].append(address)
-
-
-    for item in results.values():
-        if args.cidr:
-            network = str(item['cidr'])
-        else:
-            network = item['range']
-
-        if args.csv:
+    if args.csv:
+        for lookup in results:
+            registry = lookup['registry'].upper()
+            country = lookup['country']
+            owner = lookup['owner']
+            cidr = lookup['cidr']
             if not args.count:
-                for address in item['addresses']:
-                    print(f"{address},{network},{item['netname']},{item['owner']},{item['source']}")
+                for address in lookup['addresses']:
+                    print(f"{registry},{country},{owner},{cidr},{address}")
             else:
-                print(f"{len(item['addresses'])},{network},{item['netname']},{item['owner']},{item['source']}")
-        else:
-            print(f"{item['source']} - {item['netname']} - {item['owner']}")
-            sys.stdout.write(f"\t{network}\t: ")
+                targets = len(lookup['addresses'])
+                print(f"{registry},{country},{owner},{cidr},{targets}")
+    else:
+        table = []
+        for lookup in results:
+            registry = lookup['registry'].upper()
+            country = lookup['country']
+            owner = lookup['owner']
+            cidr = lookup['cidr']
             if not args.count:
-                print(f"{', '.join(item['addresses'])}")
+                for address in lookup['addresses']:
+                    table.append([registry, country, owner, cidr, address])
             else:
-                sys.stdout.write(f"{len(item['addresses'])} IP ")
-                sys.stdout.write('addresses') if len(item['addresses']) > 1 else sys.stdout.write('address')
-                print(" in network")
+                targets = len(lookup['addresses'])
+                table.append([registry, country, owner, cidr, targets])
+
+        headers = ["registry", "country", "owner", "cidr", "targets"]
+        print(tabulate(table, headers, tablefmt="presto"))

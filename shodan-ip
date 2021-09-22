@@ -9,6 +9,7 @@ import sys
 import argparse
 import asyncio
 import aiohttp
+import time
 from aiohttp import ClientSession, TCPConnector
 
 ###########
@@ -65,6 +66,7 @@ global key
 #############
 
 async def fetch(url, address, session):
+    time.sleep(0.5) # Add time delay to avoid server side rate limiting of 1 request per 1 second
     try:
         #params = {'ips': address, 'key': key}
         #async with session.get(url, params=params) as response:
