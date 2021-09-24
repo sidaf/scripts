@@ -256,13 +256,13 @@ class NessusHost:
     def ports(self) -> list:
         result = self.tree.xpath('//ReportItem/@port')
         if len(result) > 0:
-            return sorted(list(set(self.tree.xpath('//ReportItem/@port'))))
+            return sorted(list(set(self.tree.xpath('//ReportItem/[not(@port="0")]'))))
         return None
     
     def services(self) -> list:
         result = self.tree.xpath('//ReportItem/@svc_name')
         if len(result) > 0:
-            return sorted(list(set(self.tree.xpath('//ReportItem/@svc_name'))))
+            return sorted(list(set(self.tree.xpath('//ReportItem/[not(@svc_name="general")]'))))
         return None
     
     def events(self) -> Iterator[NessusEvent]:
