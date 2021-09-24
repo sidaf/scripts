@@ -1,10 +1,10 @@
 """
 import sys
 sys.path.insert(0, '/location/of/this/module/')
-from nessus import Scan
+from nessus import NessusScan
 
 xml = open("vulnerability-analysis/nessus/AMOUT001.nessus").read()
-scan = Scan(xml)
+scan = NessusScan(xml)
 
 print("___ SCAN ______________________________")
 print(f"{'title:':>10} {scan.title()}")
@@ -32,7 +32,7 @@ for host in scan.hosts():
 from lxml import etree as ElementTree
 from typing import Iterator
 
-class Event:
+class NessusEvent:
     
     def __init__(self, element: ElementTree.Element):
         self.tree = ElementTree.ElementTree(element)
@@ -209,7 +209,7 @@ class Event:
         return False
     
     
-class Host:
+class NessusHost:
     
     def __init__(self, element: ElementTree.Element):
         self.tree = ElementTree.ElementTree(element)
@@ -265,11 +265,11 @@ class Host:
             return sorted(list(set(self.tree.xpath('//ReportItem/@svc_name'))))
         return None
     
-    def events(self) -> Iterator[Event]:
-        return (Event(element) for element in self.tree.xpath('//ReportItem'))
+    def events(self) -> Iterator[NessusEvent]:
+        return (NessusEvent(element) for element in self.tree.xpath('//ReportItem'))
 
     
-class Scan:
+class NessusScan:
     
     def __init__(self, xml: str):
         self.tree = ElementTree.ElementTree(ElementTree.fromstring(xml))
@@ -298,5 +298,5 @@ class Scan:
                 return element[1].text.split(',')
         return None
     
-    def hosts(self) -> Iterator[Host]:
-        return (Host(element) for element in self.tree.xpath('//ReportHost'))
+    def hosts(self) -> Iterator[NessusHost]:
+        return (NessusHost(element) for element in self.tree.xpath('//ReportHost'))
