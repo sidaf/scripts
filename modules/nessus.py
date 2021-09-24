@@ -38,7 +38,7 @@ class NessusEvent:
         self.tree = ElementTree.ElementTree(element)
     
     def port(self) -> tuple:
-        return self.tree.xpath('@port')[0], self.tree.xpath('@protocol')[0], self.tree.xpath('@svc_name')[0]
+        return str(self.tree.xpath('@port')[0]), str(self.tree.xpath('@protocol')[0]), str(self.tree.xpath('@svc_name')[0])
     
     def severity(self) -> int:
          return int(self.tree.xpath('@severity')[0])
@@ -64,11 +64,11 @@ class NessusEvent:
     def plugin_name(self) -> str:
         result = self.tree.xpath('@pluginName')
         if len(result) > 0:
-            return self.tree.xpath('@pluginName')[0]
+            return str(self.tree.xpath('@pluginName')[0])
         return None
     
     def plugin_family(self) -> str:
-        return self.tree.xpath('@pluginFamily')[0]
+        return str(self.tree.xpath('@pluginFamily')[0])
     
     def plugin_type(self) -> str:
         return self.tree.xpath('plugin_type')[0].text
@@ -215,7 +215,7 @@ class NessusHost:
         self.tree = ElementTree.ElementTree(element)
     
     def name(self) -> str:
-        return self.tree.xpath('@name')[0]
+        return str(self.tree.xpath('@name')[0])
     
     def hostname(self) -> str:
         result = self.tree.xpath('//tag[@name="host-fqdn"]')
@@ -277,7 +277,7 @@ class NessusScan:
     def title(self) -> str:
         result = self.tree.xpath('Report/@name')
         if len(result) > 0:
-            return result[0]
+            return str(result[0])
         return None
     
     def policy(self) -> str:
