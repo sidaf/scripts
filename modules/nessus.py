@@ -254,15 +254,15 @@ class NessusHost:
         return None
 
     def ports(self) -> list:
-        result = self.tree.xpath('//ReportItem/@port')
+        result = self.tree.xpath("//ReportItem/@port[not(.='0')]")
         if len(result) > 0:
-            return sorted(list(set(self.tree.xpath('//ReportItem/[not(@port="0")]'))))
+            return sorted(list(set(self.tree.xpath("//ReportItem/@port[not(.='0')]"))))
         return None
     
     def services(self) -> list:
-        result = self.tree.xpath('//ReportItem/@svc_name')
+        result = self.tree.xpath("//ReportItem/@svc_name[not(.='general')]")
         if len(result) > 0:
-            return sorted(list(set(self.tree.xpath('//ReportItem/[not(@svc_name="general")]'))))
+            return sorted(list(set(self.tree.xpath("//ReportItem/@svc_name[not(.='general')]"))))
         return None
     
     def events(self) -> Iterator[NessusEvent]:
