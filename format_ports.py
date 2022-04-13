@@ -6,7 +6,8 @@ import re
 from cStringIO import StringIO
 
 def group_consec(nums):
-    # Assumes a non-empty, sorted list
+    # Assumes a non-empty list
+    nums.sort()
     sio = StringIO()
     prev = nums[0]
     for i, n in enumerate(nums):
@@ -44,5 +45,4 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         exit()
 
-    ports.sort()
     print group_consec(ports)

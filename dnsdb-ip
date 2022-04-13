@@ -9,8 +9,8 @@ import sys
 import argparse
 import json
 import socket
-from multiprocessing import Pool
-#from multiprocessing.dummy import Pool  # utilise threads rather than subprocesses
+#from multiprocessing import Pool        # utilise subprocesses rather than threads
+from multiprocessing.dummy import Pool  # utilise threads rather than subprocesses
 import signal
 import requests
 from io import StringIO

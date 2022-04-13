@@ -7,10 +7,10 @@
 import sys
 import re
 import argparse
-from socket import socket
+import socket
 import OpenSSL
-from multiprocessing import Pool
-#from multiprocessing.dummy import Pool  # utilise threads rather than subprocesses
+#from multiprocessing import Pool        # utilise subprocesses rather than threads
+from multiprocessing.dummy import Pool  # utilise threads rather than subprocesses
 import signal
 
 
@@ -41,11 +41,13 @@ def extract_san(target):
 
     context = OpenSSL.SSL.Context(OpenSSL.SSL.SSLv23_METHOD)
     context.set_verify(OpenSSL.SSL.VERIFY_NONE, verify_cb)
-    sock = socket()
+    sock = socket.socket()
     try:
         sock.connect((ip_address, port))
+        sock.settimeout(10)
         sock.setblocking(1)
         connection = OpenSSL.SSL.Connection(context, sock)
+        connection.set_tlsext_host_name(target.encode('utf-8'))
         connection.set_connect_state()
         connection.do_handshake()
 
@@ -53,6 +55,9 @@ def extract_san(target):
         sock.close()
     except OpenSSL.SSL.Error as e:
         sys.stderr.write("Error extracting certificate from host %s:%s, (%s) %s\n" % (ip_address, port, type(e).__name__, e))
+        return
+    except socket.socket.timeout as e:
+        sys.stderr.write(f"{target}:{port} => Timeout connecting to port: {e}\n")
         return
     except Exception as e:
         sys.stderr.write("Error extracting certificate from host %s:%s, %s\n" % (ip_address, port, e))
@@ -64,10 +69,9 @@ def extract_san(target):
 
     text = OpenSSL.crypto.dump_certificate(OpenSSL.crypto.FILETYPE_TEXT, x509).decode("utf-8")
 
-    # WARNING: this function does not support multiple SANs extensions - multiple X509v3 extensions of
-    # the same type is disallowed by RFC 5280.
+    # WARNING: this function does not support multiple SANs extensions - but multiple X509v3 extensions of the same type is disallowed by RFC 5280.
     match = re.search(r"X509v3 Subject Alternative Name:\s*(.*)", text)
-    # WARNING: this function assumes that no SAN can include ", "!
+    # WARNING: this function assumes that no SAN can include ", "
     sans_parts = [] if match is None else match.group(1).split(', ')
 
     for part in sans_parts:
@@ -109,7 +113,8 @@ if __name__ == '__main__':
     targets = list(set(targets))
     targets = sorted(targets)
 
-    pool = Pool(processes=10, initializer=initializer)
+    #pool = Pool(processes=10, initializer=initializer)
+    pool = Pool(processes=10)
     try:
         pool.map(extract_san, targets)
         pool.close()
