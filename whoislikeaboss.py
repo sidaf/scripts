@@ -31,6 +31,7 @@ def whois(addresses: List[str]) -> List[dict]:
         # No existing match, lookup whois
         if not ip_network:
             data = IPWhois(address).lookup_whois(inc_nir=True)
+            print(data)
 
             cidr = data['nets'][-1]['cidr']
             if ',' in cidr:

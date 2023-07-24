@@ -8,13 +8,13 @@ fi
 if [[ "$OSTYPE" =~ ^darwin ]]; then
   CREDCLOUD="$HOME/Downloads/Tools/Credcloud/credcloud-darwin"
 else
-  CREDCLOUD="$HOME/Downloads/Tools/Credcloud/credcloud"
+  CREDCLOUD="/mnt/hgfs/sion/Workspace/Tools/Credcloud/credcloud"
 fi
 
 DOMAINS=$1
 
 if [[ $# -lt 1 ]]; then
-  DOMAINS='../domains/domains.txt'
+  DOMAINS='../domains/domains.list'
 fi
 
 

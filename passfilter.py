@@ -1,4 +1,4 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python3
 # Copyright (c) 2012, AverageSecurityGuy
 # All rights reserved.
 #
@@ -157,9 +157,10 @@ if args.f:
     try:
         wordlist = open(args.f, 'r')
     except IOError:
-        print "Could not open file %s" % args.f
+        print("Could not open file %s" % args.f)
         sys.exit()
 else:
+    sys.stdin.reconfigure(errors='ignore')
     wordlist = sys.stdin
 
 for line in wordlist:
@@ -188,7 +189,7 @@ for line in wordlist:
     # requirements. If it does then keep it, if not, move to the next word.
     if args.r:
         if meets_requirements(count, parse_requirements(args.r)):
-            print word
+            print(word)
             continue
         else:
             continue
@@ -198,13 +199,13 @@ for line in wordlist:
     # the next word.
     if args.w:
         if complex_pass(count):
-            print word
+            print(word)
             continue
         else:
             continue
         
     else:
-        print word
+        print(word)
 
 if wordlist is not sys.stdin:
     wordlist.close()

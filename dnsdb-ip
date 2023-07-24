@@ -48,7 +48,7 @@ def dnsdb_lookup(address):
 
 def initializer():
     """Ignore CTRL+C in the worker process."""
-    signal.signal(signal.SIGINT, signal.SIG_IGN)
+    #signal.signal(signal.SIGINT, signal.SIG_IGN)
 
 
 ########
