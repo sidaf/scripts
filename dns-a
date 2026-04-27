@@ -55,6 +55,12 @@ class TaskPool(object):
 # FUNCTIONS #
 #############
 
+def iter_input_lines(handle):
+    for line in handle:
+        value = line.strip()
+        if value and not value.startswith('#'):
+            yield value
+
 async def fetch(name, resolver, addresses):
     try:
         results = await resolver.query(name, 'A')
@@ -81,8 +87,15 @@ async def fetch(name, resolver, addresses):
             else:
                 sys.stderr.write(f"{name} =>  Unexpected exception: {e}\n")
 
-async def run(loop, limit, hostnames, addresses):
-    resolver = aiodns.DNSResolver(loop=loop, rotate=True)
+async def run(loop, limit, hostnames, addresses, nameservers=None):
+    resolver_kwargs = {
+        'loop': loop,
+        'rotate': True,
+    }
+    if nameservers:
+        resolver_kwargs['nameservers'] = nameservers
+
+    resolver = aiodns.DNSResolver(**resolver_kwargs)
     async with TaskPool(limit) as tasks:
         for name in hostnames:
             await tasks.put(fetch(name, resolver, addresses))
@@ -92,21 +105,46 @@ async def run(loop, limit, hostnames, addresses):
 ########
 
 if __name__ == '__main__':
-    desc = 'Perform DNS lookup on supplied hostnames and output results in CSV format.'
+    desc = (
+        'Perform A-record lookups for hostnames and print CSV rows as '
+        'IP,HOSTNAME.'
+    )
+    epilog = '''
+Input:
+  - Read hostnames from FILE or STDIN, one entry per line.
+  - Blank lines and lines starting with # are ignored.
+  - Duplicate hostnames are removed before querying.
 
-    parser = argparse.ArgumentParser(description=desc)
+Behavior:
+  - Only A records are queried.
+  - Output format is CSV: IP,HOSTNAME
+  - When --filter is supplied, only rows whose resolved IP exactly matches
+    an IP listed in the filter file are printed.
+
+Examples:
+  dns-a hosts.txt
+  cat hosts.txt | dns-a -l 50
+  dns-a -f allowed_ips.txt hosts.txt
+  dns-a -n resolvers.txt hosts.txt
+'''
+
+    parser = argparse.ArgumentParser(
+        description=desc,
+        epilog=epilog,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument('-n', '--nameservers',
                         nargs='?',
                         type=argparse.FileType('r'),
                         action='store',
-                        help='file containing a list of nameservers split by a newline, otherwise use system resolver',
+                        help='file containing DNS resolver IPs, one per line; when set, only these resolvers are used',
                         metavar='FILE',
                         default=None)
     parser.add_argument('-f', '--filter',
                         nargs='?',
                         type=argparse.FileType('r'),
                         action='store',
-                        help='a list of IP addresses to filter against, only matching results are printed',
+                        help='file containing exact IPv4 addresses to keep in the output, one per line',
                         metavar='FILE',
                         default=None)
     parser.add_argument('file',
@@ -119,18 +157,19 @@ if __name__ == '__main__':
     parser.add_argument('-l', '--limit',
                         type=int,
                         action='store',
-                        help='maximum number of queries to run asynchronosly (default: 100)',
+                        help='maximum number of queries to run asynchronosly (default: 20)',
                         metavar='INT',
-                        default=100)
+                        default=20)
     args = parser.parse_args()
+    nameservers = None
 
     if args.filter:
-        addresses = [line.strip() for line in args.filter if len(line.strip())>0 and line[0] != '#']
+        addresses = [line for line in iter_input_lines(args.filter)]
     else:
         addresses = None
 
     try:
-        hostnames = [line.strip() for line in args.file if len(line.strip())>0 and line[0] != '#']
+        hostnames = [line for line in iter_input_lines(args.file)]
     except KeyboardInterrupt:
         exit()
 
@@ -139,14 +178,14 @@ if __name__ == '__main__':
 
     if args.nameservers:
         try:
-            nameservers = [line.strip() for line in args.nameservers if len(line.strip())>0 and line[0] != '#']
+            nameservers = [line for line in iter_input_lines(args.nameservers)]
         except KeyboardInterrupt:
             exit()
         
     loop = asyncio.get_event_loop()
 
     try:
-        loop.run_until_complete(run(loop, args.limit, hostnames, addresses))
+        loop.run_until_complete(run(loop, args.limit, hostnames, addresses, nameservers))
     except KeyboardInterrupt:
         sys.stderr.write("\nCaught keyboard interrupt, cleaning up...\n")
         asyncio.gather(*asyncio.Task.all_tasks()).cancel()

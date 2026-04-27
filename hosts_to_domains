@@ -8,43 +8,80 @@ import os
 import sys
 import argparse
 
+
+def iter_input_lines(handle):
+    for line in handle:
+        value = line.strip()
+        if value and not value.startswith('#'):
+            yield value
+
 ########
 # MAIN #
 ########
 
 if __name__ == '__main__':
-    desc = 'Extract domains from the supplied FQDNs and output a list of results.'
+    default_suffixes = "%s/wordlists/dns/tlds.txt" % os.path.dirname(os.path.realpath(__file__))
+    desc = (
+        'Extract parent domains from supplied FQDNs and print one domain per '
+        'line.'
+    )
+    epilog = '''
+Input:
+  - Read hostnames from FILE or STDIN, one FQDN per line.
+  - Blank lines and lines starting with # are ignored.
 
-    parser = argparse.ArgumentParser(description=desc)
+Behavior:
+  - For each input hostname, emit all parent domains except suffixes listed
+    in the suffix file.
+  - Output order follows the first time a domain is discovered.
+  - --depth limits how many labels may appear to the left of the matched
+    suffix.
+
+Examples:
+  hosts_to_domains hosts.txt
+  cat hosts.txt | hosts_to_domains
+  hosts_to_domains -d 1 hosts.txt
+  hosts_to_domains -s custom_suffixes.txt hosts.txt
+
+Depth examples:
+  - With suffix com, --depth 1 keeps example.com but skips a.example.com.
+  - With suffix co.uk, --depth 1 keeps example.co.uk but skips a.example.co.uk.
+'''
+
+    parser = argparse.ArgumentParser(
+        description=desc,
+        epilog=epilog,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument('file',
                         nargs='?',
                         type=argparse.FileType('r'),
                         action='store',
-                        help='file containing a list of IP addresses split by a newline, otherwise read from STDIN',
+                        help='file containing FQDNs or hostnames split by newlines, otherwise read from STDIN',
                         metavar='FILE',
                         default=sys.stdin)
     parser.add_argument('-s', '--suffixes',
                         nargs='?',
                         type=argparse.FileType('r'),
                         action='store',
-                        help='a list of TLDs to use as suffixes to aid identification (default: %s/wordlists/dns/tlds.txt)' % os.path.dirname(os.path.realpath(__file__)),
+                        help='file containing suffixes/TLDs, one per line, used to avoid printing bare suffixes and to evaluate --depth (default: %s)' % default_suffixes,
                         metavar='FILE',
-                        default="%s/wordlists/dns/tlds.txt" % os.path.dirname(os.path.realpath(__file__)))
+                        default=default_suffixes)
     parser.add_argument('-d', '--depth',
-                    type=int,
-                    action='store',
-                    help='only list domains up to a maximum depth (default: unlimited)',
-                    metavar='INT',
-                    default=0)
+                        type=int,
+                        action='store',
+                        help='maximum labels allowed to the left of the matched suffix; 0 disables depth filtering',
+                        metavar='INT',
+                        default=0)
     args = parser.parse_args()
 
     try:
-        hosts = [line.strip() for line in args.file if len(line.strip())>0 and line[0] != '#']
+        hosts = [line for line in iter_input_lines(args.file)]
     except KeyboardInterrupt:
         exit()
     
     try:
-        suffixes = [line.strip() for line in args.suffixes if len(line.strip())>0 and line[0] != '#']
+        suffixes = [line for line in iter_input_lines(args.suffixes)]
     except KeyboardInterrupt:
         exit()
 
@@ -62,7 +99,7 @@ if __name__ == '__main__':
                 # drop the host element
                 domain = '.'.join(elements[1:])
             if domain not in domains + suffixes:
-                    domains.append(domain)
+                domains.append(domain)
             del elements[0]
 
     for domain in domains:

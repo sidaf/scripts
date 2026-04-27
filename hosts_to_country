@@ -6,34 +6,76 @@
 
 import argparse
 import sys
-import geoip2.database
+
+
+def iter_input_lines(handle):
+    for line in handle:
+        value = line.strip()
+        if value and not value.startswith('#'):
+            yield value
 
 ########
 # MAIN #
 ########
 
 if __name__ == '__main__':
-    desc = 'Perform a lookup via GeoLite2 on a provided IP address(es) and return country of origin.'
+    desc = (
+        'Look up IPv4 or IPv6 addresses in a MaxMind GeoLite2 Country '
+        'database and print CSV rows as IP,COUNTRY,ISO_CODE.'
+    )
+    epilog = '''
+Requirements:
+  - Install the Python package: pip3 install geoip2
+    - Download a MaxMind GeoLite2 Country database from:
+        https://dev.maxmind.com/geoip/geolite2-free-geolocation-data
+    - Pass the downloaded .mmdb path via --geolite.
 
-    parser = argparse.ArgumentParser(description=desc)
+Input:
+  - Read IP addresses from FILE or STDIN, one entry per line.
+  - Blank lines and lines starting with # are ignored.
+
+Behavior:
+  - Each successful lookup prints CSV: IP,COUNTRY,ISO_CODE
+  - Failed lookups are written to stderr and do not stop the script.
+
+Examples:
+  hosts_to_country -g GeoLite2-Country.mmdb ips.txt
+  cat ips.txt | hosts_to_country -g /path/to/GeoLite2-Country.mmdb
+'''
+
+    parser = argparse.ArgumentParser(
+        description=desc,
+        epilog=epilog,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument('file',
                         nargs='?',
                         type=argparse.FileType('r'),
                         action='store',
-                        help='file containing a list of IP addresses split by a newline, otherwise read from STDIN',
+                        help='file containing IP addresses split by newlines, otherwise read from STDIN',
                         metavar='FILE',
                         default=sys.stdin)
     parser.add_argument('-g', '--geolite',
                         action='store',
-                        help='path to MaxMind\'s GeoLite2 Country database file, obtainable from https://dev.maxmind.com/geoip/geoip2/geolite2/',
+                        help='path to MaxMind\'s GeoLite2 Country .mmdb database file; see https://dev.maxmind.com/geoip/geolite2-free-geolocation-data',
                         metavar='DB',
                         required=True)
     args = parser.parse_args()
 
-    reader = geoip2.database.Reader(args.geolite)
+    try:
+        import geoip2.database
+    except ModuleNotFoundError:
+        sys.stderr.write('Missing Python dependency: geoip2. Install it with: pip3 install geoip2\n')
+        sys.exit(1)
 
     try:
-        addresses = [line.strip() for line in args.file if len(line.strip())>0 and line[0] != '#']
+        reader = geoip2.database.Reader(args.geolite)
+    except OSError as exc:
+        sys.stderr.write(f'Unable to open GeoLite database {args.geolite}: {exc}\n')
+        sys.exit(1)
+
+    try:
+        addresses = [line for line in iter_input_lines(args.file)]
     except KeyboardInterrupt:
         exit()
 

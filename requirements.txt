@@ -6,3 +6,9 @@ pycurl
 requests
 tqdm
 netaddr
+aiodns
+aiohttp
+ipwhois
+tabulate
+pyyaml
+geoip2

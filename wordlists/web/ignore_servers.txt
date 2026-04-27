@@ -1,0 +1,11 @@
+# Ignore rules for the HTTP Server and Via headers.
+# Literal rules are case-insensitive substring matches.
+# Regex rules must start with "regex:" and are case-insensitive.
+#
+# Example literal rule:
+# Apache/2.4.52 (Ubuntu)
+#
+# Example regex rule:
+# regex:^Apache/2\.4\.
+
+regex:Akamai

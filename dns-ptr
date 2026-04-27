@@ -7,6 +7,7 @@
 import sys
 import argparse
 import asyncio
+from ipaddress import IPv4Address, IPv4Network
 import aiodns
 
 ###########
@@ -55,6 +56,56 @@ class TaskPool(object):
 # FUNCTIONS #
 #############
 
+def iter_input_lines(handle):
+    for line in handle:
+        value = line.strip()
+        if value and not value.startswith('#'):
+            yield value
+
+def expand_address_spec(spec):
+    if '/' in spec:
+        network = IPv4Network(spec, strict=False)
+        for address in network.hosts():
+            yield str(address)
+        return
+
+    if '-' not in spec:
+        yield str(IPv4Address(spec))
+        return
+
+    start_text, _, end_text = spec.partition('-')
+    start_text = start_text.strip()
+    end_text = end_text.strip()
+
+    start_address = IPv4Address(start_text)
+
+    if '.' in end_text:
+        end_address = IPv4Address(end_text)
+    else:
+        end_octet = int(end_text)
+        if not 0 <= end_octet <= 255:
+            raise ValueError('last octet must be in the range 0-255')
+
+        octets = start_text.split('.')
+        end_address = IPv4Address('.'.join(octets[:3] + [str(end_octet)]))
+
+    if int(start_address) > int(end_address):
+        raise ValueError('range start must be less than or equal to range end')
+
+    for value in range(int(start_address), int(end_address) + 1):
+        yield str(IPv4Address(value))
+
+
+def parse_addresses(handle):
+    addresses = set()
+    for spec in iter_input_lines(handle):
+        try:
+            addresses.update(expand_address_spec(spec))
+        except ValueError as exc:
+            raise ValueError(f'{spec} => {exc}') from exc
+
+    return sorted(addresses, key=IPv4Address)
+
 async def fetch(address, resolver):
     try:
         result = await resolver.gethostbyaddr(address)
@@ -80,8 +131,15 @@ async def fetch(address, resolver):
             else:
                 sys.stderr.write(f"{address} =>  Unexpected exception: {e}\n")
 
-async def run(loop, limit, addresses):
-    resolver = aiodns.DNSResolver(loop=loop, rotate=True)
+async def run(loop, limit, addresses, nameservers=None):
+    resolver_kwargs = {
+        'loop': loop,
+        'rotate': True,
+    }
+    if nameservers:
+        resolver_kwargs['nameservers'] = nameservers
+
+    resolver = aiodns.DNSResolver(**resolver_kwargs)
     async with TaskPool(limit) as tasks:
         for address in addresses:
             await tasks.put(fetch(address, resolver))
@@ -92,49 +150,79 @@ async def run(loop, limit, addresses):
 ########
 
 if __name__ == '__main__':
-    desc = 'Perform reverse DNS lookup on supplied IP addresses and output results in CSV format.'
+    desc = (
+        'Perform reverse DNS lookups for IPv4 addresses or IPv4 ranges and '
+        'print CSV rows as IP,FQDN.'
+    )
+    epilog = '''
+Input:
+  - Read targets from FILE or STDIN, one entry per line.
+  - Blank lines and lines starting with # are ignored.
+  - Supported target formats:
+      192.168.0.10
+      192.168.0.1/24
+      192.168.0.10-192.168.0.50
+      192.168.0.10-50
 
-    parser = argparse.ArgumentParser(description=desc)
+Behavior:
+  - CIDR input is expanded with strict=False.
+  - CIDR expansion uses host addresses only, so network/broadcast addresses
+    are skipped where applicable.
+  - Duplicate addresses are removed before querying.
+  - Output format is CSV: IP,FQDN
+
+Examples:
+  dns-ptr targets.txt
+  cat targets.txt | dns-ptr -l 100
+  dns-ptr -n resolvers.txt ranges.txt
+'''
+
+    parser = argparse.ArgumentParser(
+        description=desc,
+        epilog=epilog,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument('-n', '--nameservers',
                         nargs='?',
                         type=argparse.FileType('r'),
                         action='store',
-                        help='file containing a list of nameservers split by a newline, otherwise use system resolver',
+                        help='file containing DNS resolver IPs, one per line; when set, only these resolvers are used',
                         metavar='FILE',
                         default=None)
     parser.add_argument('file',
                         nargs='?',
                         type=argparse.FileType('r'),
                         action='store',
-                        help='file containing a list of IP addresses split by a newline, otherwise read from STDIN',
+                        help='file containing IPs or IPv4 ranges split by newlines, otherwise read from STDIN',
                         metavar='FILE',
                         default=sys.stdin)
     parser.add_argument('-l', '--limit',
                         type=int,
                         action='store',
-                        help='maximum number of queries to run asynchronosly (default: 100)',
+                        help='maximum number of queries to run asynchronosly (default: 20)',
                         metavar='INT',
-                        default='100')
+                        default=20)
     args = parser.parse_args()
+    nameservers = None
 
     try:
-        addresses = [line.strip() for line in args.file if len(line.strip())>0 and line[0] != '#']
+        addresses = parse_addresses(args.file)
     except KeyboardInterrupt:
         exit()
+    except ValueError as exc:
+        sys.stderr.write(f"{exc}\n")
+        sys.exit(1)
     
-    # remove duplicates and sort results
-    addresses = sorted(set(addresses))
-
     if args.nameservers:
         try:
-            nameservers = [line.strip() for line in args.nameservers if len(line.strip())>0 and line[0] != '#']
+            nameservers = [line for line in iter_input_lines(args.nameservers)]
         except KeyboardInterrupt:
             exit()
 
     loop = asyncio.get_event_loop()
 
     try:
-        loop.run_until_complete(run(loop, args.limit, addresses))
+        loop.run_until_complete(run(loop, args.limit, addresses, nameservers))
     except KeyboardInterrupt:
         sys.stderr.write("\nCaught keyboard interrupt, cleaning up...\n")
         asyncio.gather(*asyncio.Task.all_tasks()).cancel()

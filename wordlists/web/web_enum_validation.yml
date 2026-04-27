@@ -1,0 +1,23 @@
+---
+- category: validation
+  probes:
+  - method: GET
+    path: /copilot-positive.txt
+  matches:
+  - output: Validation positive version \1
+    match: COPILOT%-PYWEB%-ENUM%s+version=([%d%.]+)
+- category: validation
+  probes:
+  - method: GET
+    path: /copilot-negative.txt
+  matches:
+  - output: Validation dontmatch failed
+    match: COPILOT%-PYWEB%-ENUM
+    dontmatch: BLOCK
+- category: validation
+  probes:
+  - method: HEAD
+    path: /copilot-head.txt
+  matches:
+  - output: Validation HEAD probe
+    match: ''
